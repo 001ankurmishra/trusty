@@ -114,6 +114,15 @@ class SecurityEvent(Base):
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
 
+class AssetHistory(Base):
+    __tablename__ = "asset_history"
+    id = Column(String, primary_key=True, default=gen_id)
+    project_id = Column(String, ForeignKey("projects.id"))
+    asset_id = Column(String, nullable=False)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    thickness = Column(Float, nullable=False)
+
+
 def init_db():
     Base.metadata.create_all(engine)
     # Safe migration: add new columns if they don't exist (for pre-existing DBs)

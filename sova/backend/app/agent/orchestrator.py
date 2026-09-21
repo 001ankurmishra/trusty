@@ -82,9 +82,9 @@ def _extract_calc_expression(task_text: str) -> str:
     return match.group().strip() if match else ""
 
 
-def _extract_compliance_table(sources, task_text):
+def _extract_compliance_table(sources, task_text, project_id):
     from .compliance import extract_and_evaluate
-    return extract_and_evaluate(sources, task_text)
+    return extract_and_evaluate(sources, task_text, project_id)
 
 
 def run_task(task_text: str, project_id: str, has_image: bool = False,
@@ -253,7 +253,7 @@ def run_task(task_text: str, project_id: str, has_image: bool = False,
         _step(steps, "Draft generated", "DONE", "Reasoning model produced grounded draft response", step_callback)
 
         # 5b. COMPLIANCE TABLE (deterministic extraction)
-        compliance_table = _extract_compliance_table(sources, task_text)
+        compliance_table = _extract_compliance_table(sources, task_text, project_id)
         if compliance_table:
             _step(steps, "Compliance check", "DONE",
                   f"Extracted {len(compliance_table)} measurement(s) vs limits", step_callback)

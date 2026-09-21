@@ -25,3 +25,19 @@ def calculate(expression: str):
         return {"ok": True, "result": result, "expression": expression}
     except Exception as e:
         return {"ok": False, "error": str(e), "expression": expression}
+
+def calculate_corrosion_rate(old_thickness: float, new_thickness: float, years_between: float) -> float:
+    """Calculate the corrosion rate."""
+    if years_between <= 0:
+        return 0.0
+    rate = (old_thickness - new_thickness) / years_between
+    return max(0.0, rate)
+
+def calculate_remaining_life(current_thickness: float, min_thickness: float, corrosion_rate: float) -> float:
+    """Calculate the remaining life in years."""
+    if corrosion_rate <= 0:
+        return float('inf')
+    remaining = current_thickness - min_thickness
+    if remaining <= 0:
+        return 0.0
+    return remaining / corrosion_rate
