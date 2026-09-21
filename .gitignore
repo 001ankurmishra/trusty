@@ -1,0 +1,30 @@
+# Python environments and generated files
+sova/backend/venv/
+sova/backend/venv311/
+sova/backend/venv312/
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Frontend dependencies and build output
+sova/frontend/node_modules/
+sova/frontend/dist/
+vite.config.js.timestamp-*.mjs
+
+# Local configuration and runtime data
+.env
+.env.*
+!.env.example
+sova/backend/storage/
+sova/backend/uploads/
+*.db
+*.sqlite3
+
+# Generated export files
+codebase_for_claude.txt
+
+# Editor and operating-system files
+.vscode/
+.DS_Store
+Thumbs.db
+.idea/

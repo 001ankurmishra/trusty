@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body { height: 100%; }
+body { font-family: 'Inter', system-ui, sans-serif; background: #0A0E12; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #0b0f14; }
+::-webkit-scrollbar-thumb { background: #243043; border-radius: 4px; }
+
+.card {
+  @apply bg-sova-panel border border-sova-border rounded-xl p-4;
+}
+.badge {
+  @apply text-xs px-2 py-0.5 rounded-full font-mono border;
+}
+.badge-ok { @apply bg-emerald-500/10 text-emerald-400 border-emerald-500/30; }
+.badge-warn { @apply bg-amber-500/10 text-amber-400 border-amber-500/30; }
+.badge-fail { @apply bg-red-500/10 text-red-400 border-red-500/30; }
+.badge-neutral { @apply bg-slate-500/10 text-slate-300 border-slate-500/30; }
+
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium text-sm transition-colors;
+}
+.btn-primary { @apply text-black bg-gradient-to-r from-emerald-500 to-cyan-400 hover:brightness-110 shadow-[0_8px_24px_rgba(16,185,129,0.18)]; }
+.btn-secondary { @apply bg-sova-panel2 text-sova-text border border-sova-border hover:border-sova-accent; }
+
+.metric-card { @apply bg-sova-panel border border-sova-border rounded-xl p-4 min-h-[132px] transition-colors hover:border-sova-accent/50; }
+.metric-label, .meta-label { @apply text-[10px] uppercase tracking-widest text-sova-subtext font-mono; }
+.metric-value { @apply text-4xl font-semibold mt-3 text-sova-text tracking-tight; }
+.metric-note { @apply text-xs text-sova-subtext mt-2; }
+.security-strip { @apply bg-sova-panel border border-emerald-500/40 rounded-xl p-6 min-h-[216px] shadow-[inset_3px_0_0_#10B981,0_0_34px_rgba(16,185,129,0.08)]; }
+.eyebrow { @apply text-[10px] uppercase tracking-[0.18em] text-sova-accent font-mono; }
+.shield-mark { @apply text-emerald-400 text-xl leading-none; }
+.shield-mark { animation: trustforge-pulse 2.8s ease-in-out infinite; }
+.security-line { @apply flex items-center gap-2 text-xs text-sova-subtext mt-4; }
+.security-line strong { @apply ml-auto text-[10px] font-mono text-emerald-400; }
+.status-dot { @apply inline-block w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]; }
+.section-title { @apply text-base font-semibold text-sova-text; }
+.section-subtitle { @apply text-xs text-sova-subtext mt-1; }
+.search-box { @apply flex items-center gap-2 bg-sova-panel border border-sova-border rounded-lg px-3 h-9 text-sova-subtext focus-within:border-sova-accent; }
+.search-box input { @apply bg-transparent outline-none text-sm text-sova-text w-36 placeholder:text-sova-subtext; }
+.project-card { @apply bg-sova-panel border border-sova-border rounded-xl p-5 cursor-pointer transition-all duration-200 hover:border-sova-accent/70 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,0,0,0.18)]; }
+.project-avatar { @apply w-10 h-10 rounded-lg bg-sova-panel2 border border-sova-border flex items-center justify-center text-xs font-mono font-semibold text-sova-accent shrink-0; }
+.meta-value { @apply text-sm text-sova-text mt-1 truncate; }
+.empty-state { @apply border border-dashed border-sova-border rounded-xl p-10 text-center text-sova-text; }
+.activity-row { @apply flex items-center gap-3 py-3 border-b border-sova-border/70 last:border-0; }
+.activity-icon { @apply w-7 h-7 rounded-md bg-sova-panel2 flex items-center justify-center text-sova-accent text-sm; }
+.activity-time { @apply ml-auto text-[11px] text-sova-subtext font-mono; }
+.infra-row { @apply flex items-center justify-between py-2.5 border-b border-sova-border/70 last:border-0 text-sm text-sova-subtext; }
+.infra-row span:last-child { @apply text-[10px] font-mono; }
+.modal-backdrop { @apply fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4; }
+.modal-panel { @apply w-full max-w-lg bg-sova-panel border border-sova-border rounded-xl p-6 shadow-2xl; }
+.icon-button { @apply w-8 h-8 rounded-lg text-sova-subtext hover:text-sova-text hover:bg-sova-panel2 text-xl leading-none; }
+.field-label { @apply block text-xs text-sova-subtext mt-5; }
+.field-label input { @apply block w-full mt-2 bg-sova-panel2 border border-sova-border rounded-lg px-3 py-2.5 text-sm text-sova-text outline-none focus:border-sova-accent; }
+.local-callout { @apply flex gap-3 items-start mt-5 p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5; }
+.display-title { font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em; }
+.sparkline { @apply flex items-end gap-0.5 h-6; }
+.sparkline span { @apply w-1 rounded-t-sm bg-gradient-to-t from-emerald-500 to-cyan-400 opacity-80; }
+.pulse-line { animation: trustforge-pulse 2.2s ease-in-out infinite; }
+.activity-live { @apply border border-emerald-500/20 bg-emerald-500/[0.03] rounded-xl; }
+.activity-live .activity-row { @apply px-4; }
+
+@keyframes trustforge-pulse {
+  0%, 100% { opacity: 0.72; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+@media (max-width: 640px) {
+  .search-box { @apply flex-1; }
+  .search-box input { @apply w-full; }
+  .metric-card { @apply min-h-[105px] p-3; }
+  .metric-value { @apply text-2xl; }
+}
