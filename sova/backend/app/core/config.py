@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     RAG_DISTANCE_THRESHOLD: float = 1.2
     
     ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1"]
+    
+    SIGNING_PRIVATE_KEY: str = ""
+    SIGNING_PUBLIC_KEY: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

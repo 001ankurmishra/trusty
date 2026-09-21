@@ -127,6 +127,35 @@ def generate_approval_note(task_id: str, subject: str, findings: str, sources: l
 
     filename = f"Inspection_Approval_Note_{task_id[:8]}.docx"
     filepath = os.path.join(settings.ARTIFACT_DIR, filename)
+    
+    # 8. Sign the document
+    if settings.SIGNING_PRIVATE_KEY:
+        from cryptography.hazmat.primitives.asymmetric import ed25519
+        from cryptography.hazmat.primitives import serialization
+        import base64
+        
+        # Extract text to sign
+        text_payload = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    if cell.text.strip():
+                        text_payload += "\n" + cell.text.strip()
+        
+        private_key = serialization.load_pem_private_key(
+            settings.SIGNING_PRIVATE_KEY.encode('utf-8'),
+            password=None
+        )
+        signature = private_key.sign(text_payload.encode('utf-8'))
+        sig_b64 = base64.b64encode(signature).decode('utf-8')
+        
+        doc.add_paragraph("\n--- BEGIN ED25519 SIGNATURE ---")
+        sig_p = doc.add_paragraph(sig_b64)
+        sig_p.runs[0].font.name = "Courier New"
+        sig_p.runs[0].font.size = Pt(8)
+        sig_p.runs[0].font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+        doc.add_paragraph("--- END ED25519 SIGNATURE ---")
+
     doc.save(filepath)
     return filepath, filename
 
