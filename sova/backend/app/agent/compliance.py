@@ -34,9 +34,7 @@ def evaluate(measured_val, limit_val, operator):
 
 def _extract_rules(text):
     """
-    Extract SOP rules. Example lines:
-    - Maximum Allowable Working Pressure (MAWP): 150 PSI
-    - Maximum Operating Temperature | 85°C
+    Extract SOP rules using regex, fallback to LLM if empty.
     """
     rules = []
     # Pattern to match "Maximum/Minimum ... Parameter ...: Value Unit" or with |
@@ -53,19 +51,45 @@ def _extract_rules(text):
             "limit": limit_val,
             "unit": unit
         })
+        
+    if not rules:
+        # LLM fallback
+        from .llm_client import generate
+        prompt = f"Extract compliance rules (maximum or minimum limits) from this text.\n\nTEXT:\n{text}\n\nRespond ONLY with a JSON array of objects. Keys: parameter (string), operator ('max' or 'min'), limit (float), unit (string)."
+        try:
+            res = generate("qwen2.5:3b-instruct", prompt, system="You are a JSON extractor.", max_tokens=300)
+            import json
+            import re as regex
+            
+            # Find the JSON array
+            json_str = res["text"]
+            match = regex.search(r"\[.*\]", json_str, regex.DOTALL)
+            if match:
+                extracted = json.loads(match.group(0))
+                for r in extracted:
+                    # STRICT HALLUCINATION REJECTION
+                    val_str = str(r["limit"])
+                    val_int_str = str(int(r["limit"])) if r["limit"] == int(r["limit"]) else None
+                    if val_str in text or (val_int_str and val_int_str in text):
+                        rules.append({
+                            "parameter": str(r["parameter"]).strip().lower(),
+                            "operator": "max" if "max" in str(r["operator"]).lower() else "min",
+                            "limit": float(r["limit"]),
+                            "unit": str(r["unit"])
+                        })
+        except Exception as e:
+            print("LLM rule extraction failed:", e)
+            
     return rules
 
 def _extract_measurements(text, filename, version, page):
     """
-    Extract actual measurements. Example lines:
-    - Operating Pressure: 165 PSI
-    - Current Temperature | 82°C
+    Extract actual measurements using regex, fallback to LLM if empty.
     """
     measurements = []
     pattern = re.compile(r"([\w\s]+?)\s*[:\|]\s*([\d\.]+)\s*([a-zA-Z°]+)", re.IGNORECASE)
     for m in pattern.finditer(text):
         param = m.group(1).strip().lower()
-        # ignore lines that matched the rule pattern (e.g. if SOP and Inspection are same text)
         if "maximum" in param or "minimum" in param or "mawp" in param:
             continue
         val = float(m.group(2))
@@ -76,6 +100,34 @@ def _extract_measurements(text, filename, version, page):
             "unit": unit,
             "source_page": f"{filename} v{version} p.{page}"
         })
+        
+    if not measurements:
+        # LLM fallback
+        from .llm_client import generate
+        prompt = f"Extract physical measurements from this inspection report.\n\nTEXT:\n{text}\n\nRespond ONLY with a JSON array of objects. Keys: parameter (string), value (float), unit (string)."
+        try:
+            res = generate("qwen2.5:3b-instruct", prompt, system="You are a JSON extractor.", max_tokens=300)
+            import json
+            import re as regex
+            
+            json_str = res["text"]
+            match = regex.search(r"\[.*\]", json_str, regex.DOTALL)
+            if match:
+                extracted = json.loads(match.group(0))
+                for m in extracted:
+                    # STRICT HALLUCINATION REJECTION
+                    val_str = str(m["value"])
+                    val_int_str = str(int(m["value"])) if m["value"] == int(m["value"]) else None
+                    if val_str in text or (val_int_str and val_int_str in text):
+                        measurements.append({
+                            "parameter": str(m["parameter"]).strip().lower(),
+                            "value": float(m["value"]),
+                            "unit": str(m["unit"]),
+                            "source_page": f"{filename} v{version} p.{page}"
+                        })
+        except Exception as e:
+            print("LLM measurement extraction failed:", e)
+            
     return measurements
 
 def _fuzzy_match(meas_param, rule_param):
