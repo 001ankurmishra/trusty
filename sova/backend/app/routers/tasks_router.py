@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from ..core.db import get_db, Task, Artifact, User, AuditLog, Project, ProjectMember
+from ..core.db import get_db, Task, Artifact, User, AuditLog, Project, ProjectMember, create_audit_log
 from ..core.auth import get_current_user, require_role
 from ..core import security_monitor
 from ..agent.orchestrator import run_task
@@ -102,6 +102,7 @@ def _run_task_background(task_id: str, input_text: str, project_id: str,
         task.steps_json = json.dumps(result["steps"])
         task.sources_json = json.dumps(result["sources"])
         task.verification_json = json.dumps(result["verification"])
+        task.compliance_json = json.dumps(result.get("compliance_table", []))
         task.result_text = result["result_text"]
         task.requires_approval = result["requires_approval"]
         task.approval_status = "PENDING" if result["requires_approval"] else "NONE"
@@ -127,8 +128,7 @@ def _run_task_background(task_id: str, input_text: str, project_id: str,
             task.artifact_id = artifact.id
 
         db.commit()
-        db.add(AuditLog(user_id=user_id, action="RUN_TASK", detail=input_text[:200], project_id=project_id))
-        db.commit()
+        create_audit_log(db, user_id=user_id, action="RUN_TASK", detail=input_text[:200], project_id=project_id)
     finally:
         db.close()
 
@@ -157,7 +157,9 @@ def _serialize_task(task: Task):
         "id": task.id, "status": task.status, "input_text": task.input_text,
         "selected_model": task.selected_model, "model_reason": task.model_reason,
         "steps": json.loads(task.steps_json), "sources": json.loads(task.sources_json),
-        "verification": json.loads(task.verification_json), "result_text": task.result_text,
+        "verification": json.loads(task.verification_json), 
+        "compliance_table": json.loads(task.compliance_json) if task.compliance_json else [],
+        "result_text": task.result_text,
         "requires_approval": task.requires_approval, "approval_status": task.approval_status,
         "artifact_id": task.artifact_id, "created_at": task.created_at.isoformat(),
     }
@@ -168,14 +170,7 @@ def get_task(task_id: str, db: Session = Depends(get_db), user: User = Depends(g
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(404, "Task not found")
-    # Access check via project
-    if user.role != "ADMIN":
-        member = db.query(ProjectMember).filter(
-            ProjectMember.project_id == task.project_id,
-            ProjectMember.user_id == user.id,
-        ).first()
-        if not member:
-            raise HTTPException(403, "Access denied")
+    _check_project_access(task.project_id, user, db)
     return _serialize_task(task)
 
 
@@ -200,6 +195,7 @@ def approve_task(
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(404, "Task not found")
+    _check_project_access(task.project_id, user, db)
     if not task.requires_approval:
         raise HTTPException(400, "This task does not require approval")
     if task.approval_status != "PENDING":
@@ -237,6 +233,7 @@ def approve_task(
                 calculations="",
                 recommendations="",
                 verification=verification,
+                compliance_table=json.loads(task.compliance_json) if task.compliance_json else [],
                 reviewer_name=user.username,
                 decision="APPROVED",
                 decision_timestamp=datetime.datetime.utcnow().isoformat(),
@@ -257,12 +254,12 @@ def approve_task(
             pass  # if regeneration fails, keep old artifact
 
     action = "APPROVE_TASK_OVERRIDE" if is_admin_override else "APPROVE_TASK"
-    db.add(AuditLog(
+    create_audit_log(
+        db,
         user_id=user.id, action=action,
         detail=f"{task_id}" + (f" comment: {payload.comment}" if payload.comment else ""),
         project_id=task.project_id,
-    ))
-    db.commit()
+    )
     return _serialize_task(task)
 
 
@@ -276,6 +273,7 @@ def reject_task(
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(404, "Task not found")
+    _check_project_access(task.project_id, user, db)
     if not task.requires_approval:
         raise HTTPException(400, "This task does not require approval")
     if task.approval_status != "PENDING":
@@ -296,12 +294,12 @@ def reject_task(
     })
     task.steps_json = json.dumps(steps)
     db.commit()
-    db.add(AuditLog(
+    create_audit_log(
+        db,
         user_id=user.id, action="REJECT_TASK",
         detail=f"{task_id}" + (f" comment: {payload.comment}" if payload.comment else ""),
         project_id=task.project_id,
-    ))
-    db.commit()
+    )
     return _serialize_task(task)
 
 
@@ -311,6 +309,7 @@ def work_receipt(task_id: str, db: Session = Depends(get_db), user: User = Depen
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(404, "Task not found")
+    _check_project_access(task.project_id, user, db)
 
     # Get real security counters
     counters = security_monitor.get_counters()
@@ -344,10 +343,12 @@ def download_artifact(artifact_id: str, db: Session = Depends(get_db), user: Use
 
     # Check task approval status — block download if PENDING or REJECTED
     task = db.query(Task).filter(Task.id == artifact.task_id).first()
-    if task and task.requires_approval:
-        if task.approval_status == "PENDING":
-            raise HTTPException(403, "Artifact download blocked: task requires approval and is still PENDING.")
-        if task.approval_status == "REJECTED":
-            raise HTTPException(403, "Artifact download blocked: task was REJECTED.")
+    if task:
+        _check_project_access(task.project_id, user, db)
+        if task.requires_approval:
+            if task.approval_status == "PENDING":
+                raise HTTPException(403, "Artifact download blocked: task requires approval and is still PENDING.")
+            if task.approval_status == "REJECTED":
+                raise HTTPException(403, "Artifact download blocked: task was REJECTED.")
 
     return FileResponse(artifact.filepath, filename=artifact.filename)

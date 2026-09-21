@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from ..core.db import get_db, Project, ProjectMember, User, AuditLog
+from ..core.db import get_db, Project, ProjectMember, User, AuditLog, create_audit_log
 from ..core.auth import get_current_user
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -20,8 +20,8 @@ def create_project(payload: ProjectIn, db: Session = Depends(get_db), user: User
     # Auto-add creator as project member (OWNER role)
     member = ProjectMember(project_id=proj.id, user_id=user.id, role="OWNER")
     db.add(member)
-    db.add(AuditLog(user_id=user.id, action="CREATE_PROJECT", detail=proj.name, project_id=proj.id))
     db.commit()
+    create_audit_log(db, user_id=user.id, action="CREATE_PROJECT", detail=proj.name, project_id=proj.id)
     return {"id": proj.id, "name": proj.name, "description": proj.description}
 
 
@@ -73,6 +73,6 @@ def add_member(
         return {"detail": "User is already a member"}
     new_member = ProjectMember(project_id=project_id, user_id=payload.user_id, role=payload.role)
     db.add(new_member)
-    db.add(AuditLog(user_id=user.id, action="ADD_MEMBER", detail=payload.user_id, project_id=project_id))
     db.commit()
+    create_audit_log(db, user_id=user.id, action="ADD_MEMBER", detail=payload.user_id, project_id=project_id)
     return {"detail": "Member added"}

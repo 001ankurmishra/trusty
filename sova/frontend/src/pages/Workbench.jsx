@@ -220,9 +220,41 @@ export default function Workbench() {
             </div>
 
             {!isRunning && task.result_text && (
-              <div className="card">
+              <div className="card border-sova-accent/20">
                 <div className="text-sm font-medium mb-2">Result</div>
                 <div className="text-sm text-sova-text whitespace-pre-wrap leading-relaxed">{task.result_text}</div>
+              </div>
+            )}
+
+            {!isRunning && task.compliance_table && task.compliance_table.length > 0 && (
+              <div className="card border-sova-accent/20">
+                <div className="text-sm font-medium mb-3">Compliance Comparison</div>
+                <div className="overflow-x-auto rounded border border-sova-border">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-sova-panel2 text-sova-subtext text-xs uppercase">
+                      <tr>
+                        <th className="px-3 py-2 font-medium">Parameter</th>
+                        <th className="px-3 py-2 font-medium">Measured</th>
+                        <th className="px-3 py-2 font-medium">Limit (SOP)</th>
+                        <th className="px-3 py-2 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-sova-border">
+                      {task.compliance_table.map((row, i) => (
+                        <tr key={i} className="hover:bg-sova-panel2 transition-colors">
+                          <td className="px-3 py-2 font-medium">{row.parameter}</td>
+                          <td className="px-3 py-2 font-mono text-xs">{row.measured}</td>
+                          <td className="px-3 py-2 font-mono text-xs text-sova-subtext">{row.limit}</td>
+                          <td className="px-3 py-2">
+                            <span className={`badge ${row.status === "PASS" ? "badge-ok" : "badge-fail"}`}>
+                              {row.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 

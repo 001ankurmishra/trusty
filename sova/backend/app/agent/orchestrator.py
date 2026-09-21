@@ -83,37 +83,8 @@ def _extract_calc_expression(task_text: str) -> str:
 
 
 def _extract_compliance_table(sources, task_text):
-    """
-    When both an inspection report and an SOP exist in the sources,
-    extract measured values vs SOP limits deterministically via regex.
-    Returns a list of dicts: {parameter, measured, limit, status, source_page}
-    """
-    table = []
-    # Pattern: "parameter: measured_value unit (limit: limit_value unit)" or similar
-    value_pattern = re.compile(
-        r"(?P<param>[\w\s/]+?)[\s:]+(?P<measured>[\d.]+)\s*(?P<unit>[a-zA-Z°%/]+)"
-        r".*?(?:limit|max|min|threshold|specification|SOP|require|standard)"
-        r".*?(?P<limit>[\d.]+)\s*(?P<limit_unit>[a-zA-Z°%/]*)",
-        re.IGNORECASE
-    )
-
-    for source in sources:
-        chunk = source.get("chunk", "")
-        for m in value_pattern.finditer(chunk):
-            try:
-                measured_val = float(m.group("measured"))
-                limit_val = float(m.group("limit"))
-                status = "PASS" if measured_val <= limit_val else "FAIL"
-                table.append({
-                    "parameter": m.group("param").strip(),
-                    "measured": f"{measured_val} {m.group('unit')}",
-                    "limit": f"{limit_val} {m.group('limit_unit') or m.group('unit')}",
-                    "status": status,
-                    "source_page": f"{source['filename']} p.{source['page']}",
-                })
-            except (ValueError, IndexError):
-                continue
-    return table
+    from .compliance import extract_and_evaluate
+    return extract_and_evaluate(sources, task_text)
 
 
 def run_task(task_text: str, project_id: str, has_image: bool = False,

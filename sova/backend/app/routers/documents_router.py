@@ -4,7 +4,7 @@ import hashlib
 import base64
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
-from ..core.db import get_db, Document, User, AuditLog, ProjectMember, Project
+from ..core.db import get_db, Document, User, AuditLog, ProjectMember, Project, create_audit_log
 from ..core.auth import get_current_user
 from ..core.config import settings
 from ..tools import doc_parser, rag_store
@@ -96,8 +96,7 @@ async def upload_document(
     )
     db.add(doc)
     db.commit()
-    db.add(AuditLog(user_id=user.id, action="UPLOAD_DOCUMENT", detail=safe_name, project_id=project_id))
-    db.commit()
+    create_audit_log(db, user_id=user.id, action="UPLOAD_DOCUMENT", detail=safe_name, project_id=project_id)
 
     try:
         pages = doc_parser.parse_document(filepath, ext)
@@ -131,8 +130,7 @@ async def upload_document(
         doc.processing_status = "DONE"
         doc.page_count = len(pages)
         db.commit()
-        db.add(AuditLog(user_id=user.id, action="RAG_INGEST", detail=f"{n_chunks} chunks", project_id=project_id))
-        db.commit()
+        create_audit_log(db, user_id=user.id, action="RAG_INGEST", detail=f"{n_chunks} chunks", project_id=project_id)
         flagged = [p["page"] for p in pages if p.get("low_confidence")]
         result = {
             "id": doc.id, "filename": doc.filename, "status": doc.processing_status,

@@ -28,7 +28,7 @@ fi
 echo "[2] Starting FastAPI backend on http://localhost:8000 …"
 cd "$ROOT/backend"
 source venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+uvicorn app.main:app --host 127.0.0.1 --port 8000 &
 BACKEND_PID=$!
 echo "    Backend PID: $BACKEND_PID"
 

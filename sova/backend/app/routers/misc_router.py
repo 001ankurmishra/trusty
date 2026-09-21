@@ -76,9 +76,13 @@ def verify_audit_chain(db: Session = Depends(get_db), user: User = Depends(get_c
 
     prev_hash = "GENESIS"
     for i, entry in enumerate(logs):
-        # Skip entries without hash (pre-migration entries)
         if not entry.entry_hash:
-            continue
+            return {
+                "status": "TAMPERED",
+                "broken_entry_id": entry.id,
+                "broken_index": i,
+                "detail": f"Entry #{i} is missing entry_hash (tampering detected)."
+            }
 
         expected_hash = compute_audit_hash(
             entry.prev_hash or "GENESIS",

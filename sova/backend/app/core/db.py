@@ -69,6 +69,7 @@ class Task(Base):
     steps_json = Column(Text, default="[]")  # execution timeline
     sources_json = Column(Text, default="[]")
     verification_json = Column(Text, default="{}")
+    compliance_json = Column(Text, default="[]")
     result_text = Column(Text, default="")
     artifact_id = Column(String, default="")
     requires_approval = Column(Boolean, default=False)
@@ -116,6 +117,7 @@ def init_db():
     _safe_add_column("artifacts", "sha256", "TEXT DEFAULT ''")
     _safe_add_column("audit_logs", "prev_hash", "TEXT DEFAULT ''")
     _safe_add_column("audit_logs", "entry_hash", "TEXT DEFAULT ''")
+    _safe_add_column("tasks", "compliance_json", "TEXT DEFAULT '[]'")
 
 
 def _safe_add_column(table: str, column: str, col_type: str):

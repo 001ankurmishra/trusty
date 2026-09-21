@@ -1,4 +1,6 @@
 import os
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import model_validator
 
 # --- Air-gap: set offline flags BEFORE any HuggingFace/transformers import ---
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
@@ -6,35 +8,41 @@ os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-class Settings:
-    APP_ENV = os.getenv("APP_ENV", "development")
-    SECRET_KEY = os.getenv("SECRET_KEY", "sova-local-dev-secret-change-me")
-    ALGORITHM = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES = 480
+class Settings(BaseSettings):
+    APP_ENV: str = "development"
+    SECRET_KEY: str = "sova-local-dev-secret-change-me"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
 
-    DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR}/storage/sova.db")
-    CHROMA_DIR = os.getenv("CHROMA_DIR", f"{BASE_DIR}/storage/chroma")
-    ARTIFACT_DIR = os.getenv("ARTIFACT_DIR", f"{BASE_DIR}/storage/artifacts")
-    UPLOAD_DIR = os.getenv("UPLOAD_DIR", f"{BASE_DIR}/uploads")
+    DATABASE_URL: str = f"sqlite:///{BASE_DIR}/storage/sova.db"
+    CHROMA_DIR: str = f"{BASE_DIR}/storage/chroma"
+    ARTIFACT_DIR: str = f"{BASE_DIR}/storage/artifacts"
+    UPLOAD_DIR: str = f"{BASE_DIR}/uploads"
 
     # Ollama endpoints - all local, no cloud calls ever
-    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-    REASONING_MODEL = os.getenv("REASONING_MODEL", "qwen2.5:3b-instruct")
-    CODING_MODEL = os.getenv("CODING_MODEL", "qwen2.5-coder:1.5b")
-    VISION_MODEL = os.getenv("VISION_MODEL", "moondream")
-    EMBED_MODEL_LOCAL = os.getenv("EMBED_MODEL_LOCAL", "all-MiniLM-L6-v2")  # sentence-transformers, CPU-friendly
+    OLLAMA_URL: str = "http://localhost:11434"
+    REASONING_MODEL: str = "qwen2.5:3b-instruct"
+    CODING_MODEL: str = "qwen2.5-coder:1.5b"
+    VISION_MODEL: str = "moondream"
+    EMBED_MODEL_LOCAL: str = "all-MiniLM-L6-v2"
 
-    MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "50"))
-    SANDBOX_TIMEOUT_SECONDS = int(os.getenv("SANDBOX_TIMEOUT_SECONDS", "15"))
-    OUTBOUND_NETWORK = os.getenv("OUTBOUND_NETWORK", "false").lower() == "true"
+    MAX_UPLOAD_MB: int = 50
+    SANDBOX_TIMEOUT_SECONDS: int = 15
+    OUTBOUND_NETWORK: bool = False
 
-    # Minimum password length for registration
-    MIN_PASSWORD_LENGTH = int(os.getenv("MIN_PASSWORD_LENGTH", "8"))
+    MIN_PASSWORD_LENGTH: int = 8
+    RAG_DISTANCE_THRESHOLD: float = 1.2
+    
+    ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1"]
 
-    # RAG distance threshold for grounded verification
-    RAG_DISTANCE_THRESHOLD = float(os.getenv("RAG_DISTANCE_THRESHOLD", "1.2"))
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+    @model_validator(mode='after')
+    def validate_secret_key(self):
+        if self.APP_ENV != "development":
+            if self.SECRET_KEY == "sova-local-dev-secret-change-me" or len(self.SECRET_KEY) < 32:
+                raise ValueError("In production (APP_ENV != development), you MUST provide a strong, unique SECRET_KEY (at least 32 characters).")
+        return self
 
 settings = Settings()
 
