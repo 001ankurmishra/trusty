@@ -55,7 +55,7 @@ def _extract_rules(text):
         })
     return rules
 
-def _extract_measurements(text, filename, page):
+def _extract_measurements(text, filename, version, page):
     """
     Extract actual measurements. Example lines:
     - Operating Pressure: 165 PSI
@@ -74,7 +74,7 @@ def _extract_measurements(text, filename, page):
             "parameter": param,
             "value": val,
             "unit": unit,
-            "source_page": f"{filename} p.{page}"
+            "source_page": f"{filename} v{version} p.{page}"
         })
     return measurements
 
@@ -105,12 +105,13 @@ def extract_and_evaluate(sources, task_text):
     for source in sources:
         doc_role = source.get("doc_role", "OTHER")
         text = source.get("chunk", "")
+        version = source.get("version", "1.0")
         # SOPs define limits
         if doc_role == "SOP":
             rules.extend(_extract_rules(text))
         # Inspection reports define measurements
         elif doc_role == "INSPECTION_REPORT":
-            measurements.extend(_extract_measurements(text, source.get("filename", "unknown"), source.get("page", 1)))
+            measurements.extend(_extract_measurements(text, source.get("filename", "unknown"), version, source.get("page", 1)))
         
     table = []
     

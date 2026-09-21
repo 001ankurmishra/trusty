@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { useApp } from "../store.js";
 import client from "../api/client.js";
 
@@ -237,6 +238,7 @@ export default function Workbench() {
                         <th className="px-3 py-2 font-medium">Measured</th>
                         <th className="px-3 py-2 font-medium">Limit (SOP)</th>
                         <th className="px-3 py-2 font-medium">Status</th>
+                        <th className="px-3 py-2 font-medium">Source</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-sova-border">
@@ -246,9 +248,14 @@ export default function Workbench() {
                           <td className="px-3 py-2 font-mono text-xs">{row.measured}</td>
                           <td className="px-3 py-2 font-mono text-xs text-sova-subtext">{row.limit}</td>
                           <td className="px-3 py-2">
-                            <span className={`badge ${row.status === "PASS" ? "badge-ok" : "badge-fail"}`}>
+                            <span className={`badge ${row.status === "PASS" ? "badge-ok" : row.status === "FAIL" ? "badge-fail" : "badge-warn"}`}>
                               {row.status}
                             </span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <Link to="/rules" className="text-xs text-sova-accent hover:underline font-mono truncate max-w-[150px] inline-block" title={row.source_page || "View Rules"}>
+                              {row.source_page || "Trace"}
+                            </Link>
                           </td>
                         </tr>
                       ))}

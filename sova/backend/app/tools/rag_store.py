@@ -36,7 +36,7 @@ def chunk_text(text: str, chunk_size: int = 800, overlap: int = 120):
     return [c for c in chunks if c.strip()]
 
 
-def ingest_document(doc_id: str, project_id: str, filename: str, pages: list, confidentiality: str = "Internal", doc_role: str = "OTHER"):
+def ingest_document(doc_id: str, project_id: str, filename: str, pages: list, confidentiality: str = "Internal", doc_role: str = "OTHER", version: str = "1.0"):
     embedder = _get_embedder()
     ids, docs, metas = [], [], []
     for page in pages:
@@ -51,6 +51,7 @@ def ingest_document(doc_id: str, project_id: str, filename: str, pages: list, co
                 "page": page["page"],
                 "confidentiality": confidentiality,
                 "doc_role": doc_role,
+                "version": version,
                 "low_confidence": page.get("low_confidence", False),
             })
     if not docs:
@@ -87,8 +88,34 @@ def search(query: str, project_id: str, top_k: int = 5, user_role: str = "USER")
                 "low_confidence": meta.get("low_confidence", False),
                 "confidentiality": meta.get("confidentiality", "Internal"),
                 "doc_role": meta.get("doc_role", "OTHER"),
+                "version": meta.get("version", "1.0"),
                 "distance": results["distances"][0][i] if "distances" in results and results["distances"] else None,
             })
             if len(out) >= top_k:
                 break
+    return out
+
+def get_project_rules(project_id: str):
+    """
+    Fetch all SOP chunks for a project to extract active rules.
+    """
+    results = _collection.get(
+        where={
+            "$and": [
+                {"project_id": project_id},
+                {"doc_role": "SOP"}
+            ]
+        },
+        include=["documents", "metadatas"]
+    )
+    out = []
+    if results["ids"]:
+        for i in range(len(results["ids"])):
+            meta = results["metadatas"][i]
+            out.append({
+                "chunk": results["documents"][i],
+                "filename": meta["filename"],
+                "version": meta.get("version", "1.0"),
+                "page": meta["page"]
+            })
     return out

@@ -103,7 +103,7 @@ async def upload_document(
 
     try:
         pages = doc_parser.parse_document(filepath, ext)
-        n_chunks = rag_store.ingest_document(doc.id, project_id, safe_name, pages, confidentiality, doc_role=doc.doc_role)
+        n_chunks = rag_store.ingest_document(doc.id, project_id, safe_name, pages, confidentiality, doc_role=doc.doc_role, version=doc.version)
 
         # Vision caption for images: run vision model and store as extra chunk
         vision_caption = None
@@ -158,3 +158,22 @@ def list_documents(project_id: str, db: Session = Depends(get_db), user: User = 
         "confidentiality": d.confidentiality, "uploaded_at": d.created_at.isoformat(),
         "doc_role": d.doc_role, "version": d.version, "doc_status": d.status
     } for d in docs]
+
+
+@router.get("/project/{project_id}/rules")
+def get_project_rules(project_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Exposes the extracted rules strictly via a read-only endpoint so reviewers can verify what was pulled from each document.
+    """
+    _check_project_access(project_id, user, db)
+    from ..tools import rag_store
+    from ..agent import compliance
+    
+    chunks = rag_store.get_project_rules(project_id)
+    rules = []
+    for chunk_data in chunks:
+        extracted = compliance._extract_rules(chunk_data["chunk"])
+        for r in extracted:
+            r["source_page"] = f"{chunk_data['filename']} v{chunk_data['version']} p.{chunk_data['page']}"
+            rules.append(r)
+    return {"rules": rules}

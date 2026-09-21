@@ -5,7 +5,7 @@ import client from "../api/client.js";
 
 const NAV_GROUPS = [
   { title: "Overview", items: [{ to: "/", label: "Dashboard", icon: "◧" }] },
-  { title: "Workspace", items: [{ to: "/workbench", label: "Workbench", icon: "⌘" }, { to: "/documents", label: "Documents", icon: "▤" }] },
+  { title: "Workspace", items: [{ to: "/workbench", label: "Workbench", icon: "⌘" }, { to: "/documents", label: "Documents", icon: "▤" }, { to: "/rules", label: "Active Rules", icon: "⚑" }] },
   { title: "Intelligence", items: [{ to: "/models", label: "Model Router", icon: "◎" }] },
   { title: "Governance", items: [{ to: "/security", label: "Security", icon: "◈" }, { to: "/audit", label: "Audit Log", icon: "≡" }] },
 ];
