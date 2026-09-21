@@ -64,6 +64,17 @@ def audit_logs(project_id: str, db: Session = Depends(get_db), user: User = Depe
     } for l in logs]
 
 
+@router.get("/audit/all")
+def all_audit_logs(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(200).all()
+    return [{
+        "id": l.id, "user_id": l.user_id, "action": l.action, "detail": l.detail,
+        "timestamp": l.timestamp.isoformat(),
+        "entry_hash": l.entry_hash or "",
+        "prev_hash": l.prev_hash or "",
+    } for l in logs]
+
+
 @router.get("/audit/verify")
 def verify_audit_chain(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """

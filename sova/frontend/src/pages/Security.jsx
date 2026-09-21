@@ -5,9 +5,13 @@ export default function Security() {
   const [status, setStatus] = useState(null);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  const [logs, setLogs] = useState([]);
 
   useEffect(() => {
-    const poll = () => client.get("/security/status").then((r) => setStatus(r.data)).catch(() => {});
+    const poll = () => {
+      client.get("/security/status").then((r) => setStatus(r.data)).catch(() => {});
+      client.get("/audit/all").then((r) => setLogs(r.data)).catch(() => {});
+    };
     poll();
     const id = setInterval(poll, 3000);
     return () => clearInterval(id);
@@ -90,6 +94,26 @@ export default function Security() {
               <span className="text-sova-subtext">{new Date(e.timestamp).toLocaleTimeString()}</span>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="card mt-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm font-medium">Tamper-Evident Audit Log</div>
+        </div>
+        <p className="text-xs text-sova-subtext mb-3">
+          Cryptographically chained actions to prevent malicious log tampering.
+        </p>
+        <div className="space-y-1 max-h-96 overflow-y-auto">
+          {logs.map((l) => (
+            <div key={l.id} className="flex justify-between text-xs font-mono border-b border-sova-border/50 py-1.5">
+              <span className="text-sova-accent truncate w-32">{l.action}</span>
+              <span className="text-sova-text truncate flex-1 mx-3">{l.detail}</span>
+              <span className="text-sova-subtext shrink-0 mr-3">{new Date(l.timestamp).toLocaleString()}</span>
+              <span className="text-sova-subtext shrink-0 truncate w-24 opacity-60" title={l.entry_hash}>{l.entry_hash ? `${l.entry_hash.substring(0,8)}...` : 'N/A'}</span>
+            </div>
+          ))}
+          {logs.length === 0 && <div className="text-xs text-sova-subtext">No audit events yet.</div>}
         </div>
       </div>
     </div>
