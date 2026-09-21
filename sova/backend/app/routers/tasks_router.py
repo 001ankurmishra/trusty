@@ -181,8 +181,30 @@ def list_tasks(project_id: str, db: Session = Depends(get_db), user: User = Depe
     return [_serialize_task(t) for t in tasks]
 
 
+from ..core.auth import get_current_user, require_role, verify_password
+
+# ... skipped to ApprovalIn
+
+@router.get("/inbox")
+def list_inbox_tasks(db: Session = Depends(get_db), user: User = Depends(require_role("REVIEWER", "ADMIN"))):
+    # Only AWAITING_APPROVAL tasks for projects the user has access to
+    if user.role == "ADMIN":
+        tasks = db.query(Task).filter(Task.approval_status == "PENDING").order_by(Task.created_at.desc()).all()
+    else:
+        # User is REVIEWER - they only see tasks from projects they belong to
+        tasks = db.query(Task).join(ProjectMember, Task.project_id == ProjectMember.project_id)\
+            .filter(ProjectMember.user_id == user.id, Task.approval_status == "PENDING")\
+            .order_by(Task.created_at.desc()).all()
+            
+    # Filter out tasks created by the user themselves unless ADMIN
+    if user.role != "ADMIN":
+        tasks = [t for t in tasks if t.user_id != user.id]
+        
+    return [_serialize_task(t) for t in tasks]
+
 class ApprovalIn(BaseModel):
     comment: str = ""
+    password: str = ""
 
 
 @router.post("/{task_id}/approve")
@@ -200,6 +222,9 @@ def approve_task(
         raise HTTPException(400, "This task does not require approval")
     if task.approval_status != "PENDING":
         raise HTTPException(400, f"Task approval status is {task.approval_status}, not PENDING")
+
+    if not verify_password(payload.password, user.password_hash):
+        raise HTTPException(401, "Invalid password (e-signature failed)")
 
     # Four-eyes: approver must be different from creator (except ADMIN override)
     is_admin_override = (user.id == task.user_id and user.role == "ADMIN")
@@ -278,6 +303,9 @@ def reject_task(
         raise HTTPException(400, "This task does not require approval")
     if task.approval_status != "PENDING":
         raise HTTPException(400, f"Task approval status is {task.approval_status}, not PENDING")
+
+    if not verify_password(payload.password, user.password_hash):
+        raise HTTPException(401, "Invalid password (e-signature failed)")
 
     # Four-eyes for reject too
     if user.id == task.user_id and user.role != "ADMIN":

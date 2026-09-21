@@ -76,6 +76,7 @@ export default function Workbench() {
   const [downloading, setDownloading] = useState(false);
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [comment, setComment] = useState("");
+  const [password, setPassword] = useState("");
   const pollRef = useRef(null);
 
   // Live polling: poll task status every 1s until final
@@ -116,12 +117,17 @@ export default function Workbench() {
   };
 
   const approve = async (decision) => {
+    if (!password.trim()) {
+      setError("Password is required for e-signature.");
+      return;
+    }
     setApprovalLoading(true);
     setError("");
     try {
-      const res = await client.post(`/tasks/${task.id}/${decision}`, { comment });
+      const res = await client.post(`/tasks/${task.id}/${decision}`, { comment, password });
       setTask(res.data);
       setComment("");
+      setPassword("");
     } catch (e) {
       setError(e?.response?.data?.detail || "Could not update the approval decision.");
     } finally {
@@ -284,8 +290,15 @@ export default function Workbench() {
                       className="w-full bg-sova-panel2 border border-sova-border rounded-lg px-3 py-2 text-sm outline-none focus:border-sova-accent resize-none"
                     />
                     <div className="flex gap-2">
-                      <button onClick={() => approve("approve")} disabled={approvalLoading} className="btn btn-primary">{approvalLoading ? "Updating…" : "Approve"}</button>
-                      <button onClick={() => approve("reject")} disabled={approvalLoading} className="btn btn-secondary">Reject</button>
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="E-signature password"
+                        className="bg-sova-panel2 border border-sova-border rounded-lg px-3 py-1 text-sm outline-none focus:border-sova-accent flex-1"
+                      />
+                      <button onClick={() => approve("approve")} disabled={approvalLoading || !password} className="btn btn-primary shrink-0">{approvalLoading ? "Updating…" : "Approve"}</button>
+                      <button onClick={() => approve("reject")} disabled={approvalLoading || !password} className="btn btn-secondary shrink-0">Reject</button>
                     </div>
                   </div>
                 )}

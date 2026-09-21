@@ -3,17 +3,29 @@ import { useEffect, useState } from "react";
 import { useApp } from "../store.js";
 import client from "../api/client.js";
 
-const NAV_GROUPS = [
-  { title: "Overview", items: [{ to: "/", label: "Dashboard", icon: "◧" }] },
-  { title: "Workspace", items: [{ to: "/workbench", label: "Workbench", icon: "⌘" }, { to: "/documents", label: "Documents", icon: "▤" }, { to: "/rules", label: "Active Rules", icon: "⚑" }] },
-  { title: "Intelligence", items: [{ to: "/models", label: "Model Router", icon: "◎" }] },
-  { title: "Governance", items: [{ to: "/security", label: "Security", icon: "◈" }, { to: "/audit", label: "Audit Log", icon: "≡" }] },
-];
+
 
 export default function Layout({ children }) {
   const { user, project, logout } = useApp();
   const navigate = useNavigate();
   const [security, setSecurity] = useState(null);
+
+  const workspaceItems = [
+    { to: "/workbench", label: "Workbench", icon: "⌘" }, 
+    { to: "/documents", label: "Documents", icon: "▤" }, 
+    { to: "/rules", label: "Active Rules", icon: "⚑" }
+  ];
+
+  if (user?.role === "REVIEWER" || user?.role === "ADMIN") {
+    workspaceItems.push({ to: "/inbox", label: "Inbox", icon: "✉" });
+  }
+
+  const navGroups = [
+    { title: "Overview", items: [{ to: "/", label: "Dashboard", icon: "◧" }] },
+    { title: "Workspace", items: workspaceItems },
+    { title: "Intelligence", items: [{ to: "/models", label: "Model Router", icon: "◎" }] },
+    { title: "Governance", items: [{ to: "/security", label: "Security", icon: "◈" }, { to: "/audit", label: "Audit Log", icon: "≡" }] },
+  ];
 
   useEffect(() => {
     const poll = () => client.get("/security/status").then((r) => setSecurity(r.data)).catch(() => {});
@@ -32,7 +44,7 @@ export default function Layout({ children }) {
           </div>
         </div>
         <nav className="flex-1 py-4">
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <div key={group.title} className="mb-4">
               <div className="px-5 mb-2 text-[10px] uppercase tracking-[0.18em] text-sova-subtext/70 font-mono">{group.title}</div>
               {group.items.map((n) => (

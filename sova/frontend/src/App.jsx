@@ -8,6 +8,7 @@ import Documents from "./pages/Documents.jsx";
 import Security from "./pages/Security.jsx";
 import Audit from "./pages/Audit.jsx";
 import Rules from "./pages/Rules.jsx";
+import Inbox from "./pages/Inbox.jsx";
 import ModelRouterPage from "./pages/ModelRouterPage.jsx";
 
 function Protected({ user, children }) {
@@ -32,6 +33,7 @@ export default function App() {
                   <Route path="/workbench" element={<Workbench />} />
                   <Route path="/documents" element={<Documents />} />
                   <Route path="/rules" element={<Rules />} />
+                  <Route path="/inbox" element={<Inbox />} />
                   <Route path="/models" element={<ModelRouterPage />} />
                   <Route path="/security" element={<Security />} />
                   <Route path="/audit" element={<Audit />} />
