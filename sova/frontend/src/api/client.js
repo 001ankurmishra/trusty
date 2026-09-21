@@ -10,4 +10,20 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
+client.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      // Only force logout if it's an authentication error (not validate credentials)
+      if (error.response.data?.detail === "Could not validate credentials") {
+        localStorage.removeItem("sova_token");
+        localStorage.removeItem("sova_user");
+        localStorage.removeItem("sova_project");
+        window.location.href = "/login";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default client;

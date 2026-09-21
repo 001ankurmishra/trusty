@@ -7,12 +7,14 @@ def test_compliance_engine():
         {
             "chunk": "Maximum Allowable Working Pressure (MAWP): 150 PSI\nMaximum Operating Temperature: 85°C\nMinimum Wall Thickness: 12.5 mm",
             "filename": "SOP.pdf",
-            "page": 1
+            "page": 1,
+            "doc_role": "SOP"
         },
         {
             "chunk": "Operating Pressure: 165 PSI\nCurrent Temperature: 82°C\nMeasured Wall Thickness: 13.1 mm",
             "filename": "Inspection.pdf",
-            "page": 2
+            "page": 2,
+            "doc_role": "INSPECTION_REPORT"
         }
     ]
     

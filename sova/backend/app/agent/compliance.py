@@ -2,26 +2,28 @@ import re
 
 # Unit conversions to a base unit for comparison
 UNIT_MULTIPLIERS = {
-    "psi": 1.0,
-    "bar": 14.5038,
-    "kpa": 0.145038,
-    "mm": 1.0,
-    "in": 25.4,
-    "cm": 10.0,
-    "c": 1.0,
-    "f": "F_TO_C"  # special case
+    "psi": ("pressure", 1.0),
+    "bar": ("pressure", 14.5038),
+    "kpa": ("pressure", 0.145038),
+    "mm": ("length", 1.0),
+    "in": ("length", 25.4),
+    "cm": ("length", 10.0),
+    "c": ("temperature", 1.0),
+    "f": ("temperature", "F_TO_C")
 }
 
 def normalize_value(val: float, unit: str):
     unit = unit.lower().strip()
-    # Normalize C and F
     if unit in ["°c", "c", "celsius"]:
-        return val, "c"
+        return val, "temperature", "c"
     if unit in ["°f", "f", "fahrenheit"]:
-        return (val - 32) * 5/9, "c"
+        return (val - 32) * 5/9, "temperature", "c"
+    
+    if unit not in UNIT_MULTIPLIERS:
+        return val, "unknown", unit
         
-    mult = UNIT_MULTIPLIERS.get(unit, 1.0)
-    return val * mult, unit
+    dimension, mult = UNIT_MULTIPLIERS[unit]
+    return val * mult, dimension, "base_unit"
 
 def evaluate(measured_val, limit_val, operator):
     if operator == "max":
@@ -34,12 +36,11 @@ def _extract_rules(text):
     """
     Extract SOP rules. Example lines:
     - Maximum Allowable Working Pressure (MAWP): 150 PSI
-    - Maximum Operating Temperature: 85°C
-    - Minimum Wall Thickness: 12.5 mm
+    - Maximum Operating Temperature | 85°C
     """
     rules = []
-    # Pattern to match "Maximum/Minimum ... Parameter ...: Value Unit"
-    pattern = re.compile(r"(max(?:imum)?|min(?:imum)?)[^\:]+?([\w\s]+?)\s*(?:\(.*\))?\s*:\s*([\d\.]+)\s*([a-zA-Z°]+)", re.IGNORECASE)
+    # Pattern to match "Maximum/Minimum ... Parameter ...: Value Unit" or with |
+    pattern = re.compile(r"(max(?:imum)?|min(?:imum)?)[^\:\|]+?([\w\s]+?)\s*(?:\(.*\))?\s*[:\|]\s*([\d\.]+)\s*([a-zA-Z°]+)", re.IGNORECASE)
     for m in pattern.finditer(text):
         op_str = m.group(1).lower()
         operator = "max" if "max" in op_str else "min"
@@ -58,11 +59,10 @@ def _extract_measurements(text, filename, page):
     """
     Extract actual measurements. Example lines:
     - Operating Pressure: 165 PSI
-    - Current Temperature: 82°C
-    - Measured Wall Thickness: 13.1 mm
+    - Current Temperature | 82°C
     """
     measurements = []
-    pattern = re.compile(r"([\w\s]+?)\s*:\s*([\d\.]+)\s*([a-zA-Z°]+)", re.IGNORECASE)
+    pattern = re.compile(r"([\w\s]+?)\s*[:\|]\s*([\d\.]+)\s*([a-zA-Z°]+)", re.IGNORECASE)
     for m in pattern.finditer(text):
         param = m.group(1).strip().lower()
         # ignore lines that matched the rule pattern (e.g. if SOP and Inspection are same text)
@@ -91,7 +91,8 @@ def _fuzzy_match(meas_param, rule_param):
     if "thickness" in meas_words and "thickness" in rule_words:
         return True
         
-    common = meas_words.intersection(rule_words)
+    stop_words = {"operating", "current", "measured", "allowable", "working", "internal", "external", "maximum", "minimum", "max", "min"}
+    common = meas_words.intersection(rule_words) - stop_words
     return len(common) > 0
 
 def extract_and_evaluate(sources, task_text):
@@ -102,29 +103,55 @@ def extract_and_evaluate(sources, task_text):
     measurements = []
     
     for source in sources:
+        doc_role = source.get("doc_role", "OTHER")
         text = source.get("chunk", "")
-        # SOPs usually define limits
-        rules.extend(_extract_rules(text))
-        # Inspection reports usually define measurements
-        measurements.extend(_extract_measurements(text, source.get("filename", "unknown"), source.get("page", 1)))
+        # SOPs define limits
+        if doc_role == "SOP":
+            rules.extend(_extract_rules(text))
+        # Inspection reports define measurements
+        elif doc_role == "INSPECTION_REPORT":
+            measurements.extend(_extract_measurements(text, source.get("filename", "unknown"), source.get("page", 1)))
         
     table = []
     
     for meas in measurements:
-        for rule in rules:
-            if _fuzzy_match(meas["parameter"], rule["parameter"]):
-                norm_meas_val, norm_meas_unit = normalize_value(meas["value"], meas["unit"])
-                norm_rule_val, norm_rule_unit = normalize_value(rule["limit"], rule["unit"])
-                
-                status = "PASS" if evaluate(norm_meas_val, norm_rule_val, rule["operator"]) else "FAIL"
-                
-                table.append({
-                    "parameter": meas["parameter"].title(),
-                    "measured": f"{meas['value']} {meas['unit']}",
-                    "limit": f"{rule['operator'].upper()} {rule['limit']} {rule['unit']}",
-                    "status": status,
-                    "source_page": meas["source_page"]
-                })
-                break # Only match first rule for simplicity
+        matched_rules = [r for r in rules if _fuzzy_match(meas["parameter"], r["parameter"])]
+        
+        if not matched_rules:
+            table.append({
+                "parameter": meas["parameter"].title(),
+                "measured": f"{meas['value']} {meas['unit']}",
+                "limit": "No matching rule",
+                "status": "NEEDS_REVIEW",
+                "source_page": meas["source_page"]
+            })
+            continue
+            
+        if len(matched_rules) > 1:
+            table.append({
+                "parameter": meas["parameter"].title(),
+                "measured": f"{meas['value']} {meas['unit']}",
+                "limit": "Ambiguous rules",
+                "status": "NEEDS_REVIEW",
+                "source_page": meas["source_page"]
+            })
+            continue
+            
+        rule = matched_rules[0]
+        meas_v, meas_dim, _ = normalize_value(meas["value"], meas["unit"])
+        rule_v, rule_dim, _ = normalize_value(rule["limit"], rule["unit"])
+        
+        if meas_dim == "unknown" or rule_dim == "unknown" or meas_dim != rule_dim:
+            status = "NEEDS_REVIEW"
+        else:
+            status = "PASS" if evaluate(meas_v, rule_v, rule["operator"]) else "FAIL"
+            
+        table.append({
+            "parameter": meas["parameter"].title(),
+            "measured": f"{meas['value']} {meas['unit']}",
+            "limit": f"{rule['operator'].upper()} {rule['limit']} {rule['unit']}",
+            "status": status,
+            "source_page": meas["source_page"]
+        })
                 
     return table

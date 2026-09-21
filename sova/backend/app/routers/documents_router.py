@@ -47,6 +47,9 @@ def _check_project_access(project_id: str, user: User, db: Session):
 async def upload_document(
     project_id: str = Form(...),
     confidentiality: str = Form("Internal"),
+    doc_role: str = Form("OTHER"),
+    version: str = Form("1.0"),
+    status: str = Form("ACTIVE"),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -92,7 +95,7 @@ async def upload_document(
     doc = Document(
         filename=safe_name, filepath=filepath, file_type=ext, project_id=project_id,
         uploader_id=user.id, confidentiality=confidentiality, processing_status="PROCESSING",
-        checksum=checksum,
+        checksum=checksum, doc_role=doc_role, version=version, status=status
     )
     db.add(doc)
     db.commit()
@@ -100,7 +103,7 @@ async def upload_document(
 
     try:
         pages = doc_parser.parse_document(filepath, ext)
-        n_chunks = rag_store.ingest_document(doc.id, project_id, safe_name, pages, confidentiality)
+        n_chunks = rag_store.ingest_document(doc.id, project_id, safe_name, pages, confidentiality, doc_role=doc.doc_role)
 
         # Vision caption for images: run vision model and store as extra chunk
         vision_caption = None
@@ -153,4 +156,5 @@ def list_documents(project_id: str, db: Session = Depends(get_db), user: User = 
         "id": d.id, "filename": d.filename, "file_type": d.file_type,
         "status": d.processing_status, "pages": d.page_count,
         "confidentiality": d.confidentiality, "uploaded_at": d.created_at.isoformat(),
+        "doc_role": d.doc_role, "version": d.version, "doc_status": d.status
     } for d in docs]

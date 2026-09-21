@@ -49,7 +49,10 @@ class Document(Base):
     project_id = Column(String, ForeignKey("projects.id"))
     uploader_id = Column(String, ForeignKey("users.id"))
     confidentiality = Column(String, default="Internal")
+    doc_role = Column(String, default="OTHER") # SOP | INSPECTION_REPORT | OTHER
     version = Column(String, default="1.0")
+    status = Column(String, default="ACTIVE") # ACTIVE | SUPERSEDED
+    effective_date = Column(DateTime, default=datetime.datetime.utcnow)
     processing_status = Column(String, default="PENDING")  # PENDING|PROCESSING|DONE|FAILED
     checksum = Column(String, default="")
     page_count = Column(Integer, default=0)
@@ -118,6 +121,9 @@ def init_db():
     _safe_add_column("audit_logs", "prev_hash", "TEXT DEFAULT ''")
     _safe_add_column("audit_logs", "entry_hash", "TEXT DEFAULT ''")
     _safe_add_column("tasks", "compliance_json", "TEXT DEFAULT '[]'")
+    _safe_add_column("documents", "doc_role", "TEXT DEFAULT 'OTHER'")
+    _safe_add_column("documents", "status", "TEXT DEFAULT 'ACTIVE'")
+    _safe_add_column("documents", "effective_date", "DATETIME")
 
 
 def _safe_add_column(table: str, column: str, col_type: str):

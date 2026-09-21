@@ -49,7 +49,21 @@ def parse_image(filepath: str):
 
 def parse_docx(filepath: str):
     d = docx_lib.Document(filepath)
-    text = "\n".join(p.text for p in d.paragraphs)
+    lines = []
+    # In python-docx, document.elements can be tricky to iterate in order.
+    # As a simple approach, we'll extract paragraphs, then tables.
+    for p in d.paragraphs:
+        if p.text.strip():
+            lines.append(p.text)
+    
+    for table in d.tables:
+        lines.append("--- Table ---")
+        for row in table.rows:
+            row_data = [cell.text.strip().replace('\n', ' ') for cell in row.cells]
+            lines.append(" | ".join(row_data))
+        lines.append("-------------")
+            
+    text = "\n".join(lines)
     return [{"page": 1, "text": text, "ocr_used": False, "low_confidence": False}]
 
 
