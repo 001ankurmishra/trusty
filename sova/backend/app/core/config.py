@@ -54,6 +54,14 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+def get_key_fingerprint() -> str:
+    import hashlib
+    if os.path.exists(settings.SIGNING_PUBLIC_KEY_PATH):
+        with open(settings.SIGNING_PUBLIC_KEY_PATH, "rb") as f:
+            pub_bytes = f.read()
+        return "SHA256:" + hashlib.sha256(pub_bytes).hexdigest()[:32]
+    return "UNKNOWN"
+
 os.makedirs(settings.CHROMA_DIR, exist_ok=True)
 os.makedirs(settings.ARTIFACT_DIR, exist_ok=True)
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)

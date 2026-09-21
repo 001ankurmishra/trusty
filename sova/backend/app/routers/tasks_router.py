@@ -348,6 +348,7 @@ def work_receipt(task_id: str, db: Session = Depends(get_db), user: User = Depen
     if artifact:
         artifact_sha256 = artifact.sha256
 
+    from ..core.config import get_key_fingerprint
     return {
         "task": task.input_text,
         "task_id": task.id,
@@ -360,6 +361,7 @@ def work_receipt(task_id: str, db: Session = Depends(get_db), user: User = Depen
         "human_review_status": task.approval_status,
         "artifact_sha256": artifact_sha256,
         "completion_timestamp": task.completed_at.isoformat() if task.completed_at else None,
+        "key_fingerprint": get_key_fingerprint(),
     }
 
 
@@ -379,4 +381,64 @@ def download_artifact(artifact_id: str, db: Session = Depends(get_db), user: Use
             if task.approval_status == "REJECTED":
                 raise HTTPException(403, "Artifact download blocked: task was REJECTED.")
 
-    return FileResponse(artifact.filepath, filename=artifact.filename)
+    import os
+    import zipfile
+    import hashlib
+    import base64
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+    from cryptography.hazmat.primitives import serialization
+    from ..core.config import settings
+    from ..core.db import AuditLog
+
+    # Create the zip file payload
+    zip_filename = f"AuditPack_{task.id[:8]}.zip"
+    zip_filepath = os.path.join(settings.ARTIFACT_DIR, zip_filename)
+
+    with zipfile.ZipFile(zip_filepath, 'w') as zipf:
+        # 1. Final DOCX
+        docx_name = artifact.filename
+        zipf.write(artifact.filepath, arcname=docx_name)
+        
+        # 2. Source excerpts
+        sources_content = task.sources_json.encode('utf-8')
+        zipf.writestr("sources.json", sources_content)
+        
+        # 3. Receipt JSON
+        receipt_dict = work_receipt(task.id, db, user)
+        receipt_content = json.dumps(receipt_dict, indent=2).encode('utf-8')
+        zipf.writestr("receipt.json", receipt_content)
+        
+        # 4. Relevant audit-chain entries
+        audit_logs = db.query(AuditLog).filter(AuditLog.project_id == task.project_id).all()
+        audit_dicts = [{
+            "id": l.id, "user_id": l.user_id, "action": l.action, "detail": l.detail,
+            "timestamp": l.timestamp.isoformat(),
+            "entry_hash": l.entry_hash, "prev_hash": l.prev_hash
+        } for l in audit_logs if str(task.id) in (l.detail or "")]
+        audit_content = json.dumps(audit_dicts, indent=2).encode('utf-8')
+        zipf.writestr("audit_log.json", audit_content)
+        
+        # 5. Manifest
+        def hash_bytes(b):
+            return hashlib.sha256(b).hexdigest()
+        
+        with open(artifact.filepath, "rb") as f:
+            docx_hash = hash_bytes(f.read())
+            
+        manifest_text = f"{docx_hash}  {docx_name}\n"
+        manifest_text += f"{hash_bytes(sources_content)}  sources.json\n"
+        manifest_text += f"{hash_bytes(receipt_content)}  receipt.json\n"
+        manifest_text += f"{hash_bytes(audit_content)}  audit_log.json\n"
+        
+        manifest_content = manifest_text.encode('utf-8')
+        zipf.writestr("manifest.txt", manifest_content)
+        
+        # 6. Signature
+        if os.path.exists(settings.SIGNING_PRIVATE_KEY_PATH):
+            with open(settings.SIGNING_PRIVATE_KEY_PATH, "rb") as key_file:
+                private_key = serialization.load_pem_private_key(key_file.read(), password=None)
+            signature = private_key.sign(manifest_content)
+            sig_b64 = base64.b64encode(signature).decode('utf-8')
+            zipf.writestr("signature.b64", sig_b64.encode('utf-8'))
+
+    return FileResponse(zip_filepath, filename=zip_filename)

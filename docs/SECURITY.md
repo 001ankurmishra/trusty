@@ -15,7 +15,8 @@ To prevent LLM hallucination and ensure industrial safety:
 
 ## Cryptographic Traceability
 - **Tamper-Evident Audit Log**: All system actions are stored in an SQLite database using a cryptographic hash chain. Each log entry is hashed along with the `prev_hash` (similar to a blockchain) so that any modification to historical data will break the chain and raise a tampering alert.
-- **Ed25519 Document Signing**: When an approval note is generated, the backend uses Ed25519 public key cryptography to sign the document payload (timestamp, user, findings). This signature is injected directly into the DOCX file's custom properties and can be verified entirely offline using the provided `verify_audit.py` script.
+- **Signed Audit Pack (Ed25519)**: When an approval note is generated, the backend creates a ZIP archive containing the final DOCX, source excerpts, JSON receipts, and relevant audit-chain entries. It generates a manifest of SHA-256 hashes for all files and uses Ed25519 public key cryptography to sign the manifest.
+  - *Note on Attestation*: This signature represents a **server attestation**, proving cryptographically that the system (TrustForge) generated the packet and it hasn't been altered. The identity of the reviewer granting final approval is irrevocably recorded inside the signed audit log entries within this pack. Verification can be performed completely offline using `scripts/verify_pack.py`.
 
 ## Access Control
 - **Four-Eyes Principle**: A task created by an inspector cannot be approved by the same user. An independent REVIEWER or ADMIN must provide final approval.
