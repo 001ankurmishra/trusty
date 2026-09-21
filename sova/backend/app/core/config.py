@@ -35,16 +35,21 @@ class Settings(BaseSettings):
     
     ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1"]
     
-    SIGNING_PRIVATE_KEY: str = ""
-    SIGNING_PUBLIC_KEY: str = ""
+    SIGNING_PRIVATE_KEY_PATH: str = f"{BASE_DIR}/storage/private_key.pem"
+    SIGNING_PUBLIC_KEY_PATH: str = f"{BASE_DIR}/storage/public_key.pem"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @model_validator(mode='after')
     def validate_secret_key(self):
+        is_default_secret = (self.SECRET_KEY == "sova-local-dev-secret-change-me" or len(self.SECRET_KEY) < 32)
         if self.APP_ENV != "development":
-            if self.SECRET_KEY == "sova-local-dev-secret-change-me" or len(self.SECRET_KEY) < 32:
+            if is_default_secret:
                 raise ValueError("In production (APP_ENV != development), you MUST provide a strong, unique SECRET_KEY (at least 32 characters).")
+        else:
+            if is_default_secret:
+                if "0.0.0.0" in self.ALLOWED_HOSTS or "*" in self.ALLOWED_HOSTS:
+                    raise ValueError("Cannot use default SECRET_KEY when binding to external interfaces (0.0.0.0). Set APP_ENV=production and generate a strong SECRET_KEY.")
         return self
 
 settings = Settings()

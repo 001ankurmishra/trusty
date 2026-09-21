@@ -129,7 +129,7 @@ def generate_approval_note(task_id: str, subject: str, findings: str, sources: l
     filepath = os.path.join(settings.ARTIFACT_DIR, filename)
     
     # 8. Sign the document
-    if settings.SIGNING_PRIVATE_KEY:
+    if os.path.exists(settings.SIGNING_PRIVATE_KEY_PATH):
         from cryptography.hazmat.primitives.asymmetric import ed25519
         from cryptography.hazmat.primitives import serialization
         import base64
@@ -142,10 +142,11 @@ def generate_approval_note(task_id: str, subject: str, findings: str, sources: l
                     if cell.text.strip():
                         text_payload += "\n" + cell.text.strip()
         
-        private_key = serialization.load_pem_private_key(
-            settings.SIGNING_PRIVATE_KEY.encode('utf-8'),
-            password=None
-        )
+        with open(settings.SIGNING_PRIVATE_KEY_PATH, "rb") as key_file:
+            private_key = serialization.load_pem_private_key(
+                key_file.read(),
+                password=None
+            )
         signature = private_key.sign(text_payload.encode('utf-8'))
         sig_b64 = base64.b64encode(signature).decode('utf-8')
         

@@ -20,3 +20,16 @@ To prevent LLM hallucination and ensure industrial safety:
 ## Access Control
 - **Four-Eyes Principle**: A task created by an inspector cannot be approved by the same user. An independent REVIEWER or ADMIN must provide final approval.
 - **Role-Based Access**: The system enforces `ADMIN`, `REVIEWER`, and `USER` roles, separating concerns between executing compliance checks and granting final sign-off.
+
+## Purging Secrets from History
+If a secret (like `token.json` or `public_key.pem`) is accidentally committed to the repository, it is not enough to simply delete it or add it to `.gitignore`. You must purge it from the Git history using `git filter-repo`.
+```bash
+# Install git-filter-repo
+pip install git-filter-repo
+
+# Purge the leaked file from all historical commits
+git filter-repo --invert-paths --path sova/backend/public_key.pem --path token.json
+
+# Force push to the remote repository (use caution!)
+git push origin --force --all
+```

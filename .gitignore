@@ -28,3 +28,8 @@ codebase_for_claude.txt
 .DS_Store
 Thumbs.db
 .idea/
+
+# Security keys
+*.pem
+*.key
+token*.json
