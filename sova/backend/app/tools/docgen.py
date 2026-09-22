@@ -33,10 +33,11 @@ def generate_approval_note(task_id: str, subject: str, findings: str, sources: l
     header.runs[0].font.size = Pt(8)
     header.runs[0].font.color.rgb = RGBColor(0x66, 0x66, 0x66)
     footer = section.footer.paragraphs[0]
-    footer.text = "Confidential - TrustForge local workbench"
+    footer.text = "Confidential - TrustForge local workbench | ⚠️ AI-Assisted Document: Human Verification Required"
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
     footer.runs[0].font.size = Pt(8)
     footer.runs[0].font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+    footer.runs[0].bold = True
 
     title = doc.add_heading("Inspection Approval Note", level=0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER

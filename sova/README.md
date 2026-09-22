@@ -56,16 +56,31 @@ time on demand. Total disk: ~6GB, well inside 512GB.
 ## 3. Automated Setup
 
 To set up everything (backend venv, dependencies, embedding models, `.env`, admin user, frontend deps) in one go:
+
+**Mac / Linux:**
 ```bash
 bash sova/scripts/setup.sh
+```
+
+**Windows:**
+```powershell
+powershell .\sova\scripts\setup.ps1
 ```
 
 ## 4. Running TrustForge
 
 To start both the backend and frontend simultaneously:
+
+**Mac / Linux:**
 ```bash
 bash sova/scripts/run_all.sh
 ```
+
+**Windows:**
+```powershell
+powershell .\sova\scripts\run_all.ps1
+```
+
 The frontend runs at http://localhost:5173 (log in as `admin` / `admin123`).
 The backend runs at http://localhost:8000.
 

@@ -57,7 +57,7 @@ app.include_router(tasks_router.router)
 app.include_router(misc_router.router)
 
 
-@app.get("/")
+@app.get("/api")
 def root():
     from .core import security_monitor
     counters = security_monitor.get_counters()
@@ -67,6 +67,22 @@ def root():
         "external_calls_succeeded": counters["external_calls_succeeded"],
         "air_gapped": counters["external_calls_succeeded"] == 0,
     }
+
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+# Mount frontend dist/ if it exists (for offline deployment)
+dist_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dist")
+if os.path.exists(dist_dir):
+    app.mount("/assets", StaticFiles(directory=os.path.join(dist_dir, "assets")), name="assets")
+    
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        # Serve index.html for SPA routing
+        if not full_path or not os.path.exists(os.path.join(dist_dir, full_path)):
+            return FileResponse(os.path.join(dist_dir, "index.html"))
+        return FileResponse(os.path.join(dist_dir, full_path))
 
 
 def _warmup():

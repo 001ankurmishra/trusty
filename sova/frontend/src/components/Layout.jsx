@@ -90,8 +90,13 @@ export default function Layout({ children }) {
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 border-b border-sova-border flex items-center justify-between px-6 bg-sova-panel/60 backdrop-blur">
-          <div className="text-sova-subtext text-sm">
-            {project ? `Project Room / ${project.name}` : "No project selected"}
+          <div className="flex items-center gap-4">
+            <div className="text-sova-subtext text-sm">
+              {project ? `Project Room / ${project.name}` : "No project selected"}
+            </div>
+            <div className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">
+              ⚠️ AI Decision Support: Human Verification Required
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <span

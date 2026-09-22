@@ -43,10 +43,22 @@ check("Ollama binary", ollama_path is not None, ollama_path or "not found — in
 
 # 4. Tesseract binary
 tess_path = shutil.which("tesseract")
-check("Tesseract OCR", tess_path is not None, tess_path or "not found — brew install tesseract")
+if tess_path is None and sys.platform == "win32":
+    win_tess = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    if __import__("os").path.exists(win_tess):
+        tess_path = win_tess
+
+check("Tesseract OCR", tess_path is not None, tess_path or "not found — install Tesseract (Windows: https://github.com/UB-Mannheim/tesseract/wiki)")
 
 # 5. Ollama models
-REQUIRED_MODELS = ["qwen2.5:3b-instruct", "qwen2.5-coder:1.5b", "moondream"]
+# Read from config to avoid hardcoding
+try:
+    sys.path.insert(0, __import__("os").path.abspath(__import__("os").path.join(__import__("os").path.dirname(__file__), "..", "backend")))
+    from app.core.config import settings
+    REQUIRED_MODELS = [settings.REASONING_MODEL, settings.CODING_MODEL, settings.VISION_MODEL]
+except Exception as e:
+    REQUIRED_MODELS = ["qwen2.5:3b-instruct", "qwen2.5-coder:1.5b", "moondream"]
+
 try:
     import requests
     resp = requests.get("http://localhost:11434/api/tags", timeout=3)

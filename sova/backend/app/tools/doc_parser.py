@@ -8,6 +8,15 @@ from PIL import Image
 import io
 import docx as docx_lib
 import openpyxl
+import os
+import sys
+import shutil
+
+# Ensure pytesseract can find tesseract on Windows
+if sys.platform == "win32" and not shutil.which("tesseract"):
+    win_tess = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    if os.path.exists(win_tess):
+        pytesseract.pytesseract.tesseract_cmd = win_tess
 
 
 def parse_pdf(filepath: str):
