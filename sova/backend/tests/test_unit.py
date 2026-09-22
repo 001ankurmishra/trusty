@@ -66,12 +66,12 @@ def test_four_eyes_approval(client, auth_headers):
     db.close()
     
     # Reviewer tries to approve their own task -> should fail four-eyes
-    app_res1 = client.post(f"/tasks/{task_id}/approve", json={"comment": "Looks good"}, headers=headers_reviewer)
+    app_res1 = client.post(f"/tasks/{task_id}/approve", json={"comment": "Looks good", "password": "reviewer123"}, headers=headers_reviewer)
     assert app_res1.status_code == 403
     assert "Four-eyes principle: you cannot approve your own task" in app_res1.json()["detail"]
     
     # Admin approves it -> should succeed
-    app_res2 = client.post(f"/tasks/{task_id}/approve", json={"comment": "Approved"}, headers=headers_admin)
+    app_res2 = client.post(f"/tasks/{task_id}/approve", json={"comment": "Approved", "password": "admin123"}, headers=headers_admin)
     assert app_res2.status_code == 200
     assert app_res2.json()["approval_status"] == "APPROVED"
 
