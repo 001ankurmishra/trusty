@@ -77,7 +77,17 @@ export default function Workbench() {
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [comment, setComment] = useState("");
   const [password, setPassword] = useState("");
+  const [rowComments, setRowComments] = useState({});
+  const [projectDocs, setProjectDocs] = useState([]);
   const pollRef = useRef(null);
+
+  // Fetch docs for warnings
+  useEffect(() => {
+    if (!project) return;
+    client.get(`/documents/project/${project.id}`)
+      .then(res => setProjectDocs(res.data))
+      .catch(console.error);
+  }, [project]);
 
   // Live polling: poll task status every 1s until final
   useEffect(() => {
@@ -101,11 +111,11 @@ export default function Workbench() {
   }, [task?.id, task?.status]);
 
   const run = async () => {
-    if (!project) { setError("Select a project from the Dashboard first."); return; }
-    if (!input.trim()) return;
+    if (!project || !input.trim()) return;
     setLoading(true);
     setError("");
     setTask(null);
+    setRowComments({});
     try {
       const res = await client.post("/tasks", { project_id: project.id, input_text: input });
       setTask(res.data);
@@ -124,7 +134,7 @@ export default function Workbench() {
     setApprovalLoading(true);
     setError("");
     try {
-      const res = await client.post(`/tasks/${task.id}/${decision}`, { comment, password });
+      const res = await client.post(`/tasks/${task.id}/${decision}`, { comment, password, row_comments: rowComments });
       setTask(res.data);
       setComment("");
       setPassword("");
@@ -175,6 +185,21 @@ export default function Workbench() {
         Task runs through: classify → route → retrieve → tool use → verify → (approval) → deliverable — entirely on local models.
       </p>
 
+      {projectDocs.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {!projectDocs.some(d => d.doc_role === "SOP") && (
+            <div className="text-amber-400 bg-amber-400/10 border border-amber-400/30 px-3 py-2 rounded text-sm">
+              <strong>Warning:</strong> No SOP found in this project. Compliance tasks will likely fail to find rules.
+            </div>
+          )}
+          {!projectDocs.some(d => d.doc_role === "INSPECTION_REPORT") && (
+            <div className="text-amber-400 bg-amber-400/10 border border-amber-400/30 px-3 py-2 rounded text-sm">
+              <strong>Warning:</strong> No Inspection Report found. The agent may not have data to verify compliance against.
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="card mb-2">
         <textarea
           value={input}
@@ -191,11 +216,34 @@ export default function Workbench() {
               </button>
             ))}
           </div>
-          <button onClick={run} disabled={loading} className="btn btn-primary shrink-0 ml-3">
-            {loading ? (isRunning ? "Agent working…" : "Starting…") : "Run Task"}
-          </button>
+          <div className="flex items-center gap-3 ml-3 shrink-0">
+            {isRunning && (
+              <button 
+                onClick={async () => {
+                  try {
+                    await client.post(`/tasks/${task.id}/cancel`);
+                  } catch(e) {
+                    setError("Failed to cancel task.");
+                  }
+                }}
+                className="btn border border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs py-1"
+              >
+                Cancel
+              </button>
+            )}
+            <button onClick={run} disabled={loading} className="btn btn-primary">
+              {loading ? (isRunning ? "Agent working…" : "Starting…") : "Run Task"}
+            </button>
+          </div>
         </div>
       </div>
+      
+      {task?.status === "RECEIVED" && (
+        <div className="text-amber-400 text-sm mb-4 bg-amber-400/10 border border-amber-400/30 px-3 py-2 rounded">
+          <strong>Task Queued:</strong> You are currently at position {task.queue_position || 1} in the queue.
+        </div>
+      )}
+      
       {error && <div className="text-red-400 text-sm mb-4">{error}</div>}
 
       {task && (
@@ -245,6 +293,7 @@ export default function Workbench() {
                         <th className="px-3 py-2 font-medium">Limit (SOP)</th>
                         <th className="px-3 py-2 font-medium">Status</th>
                         <th className="px-3 py-2 font-medium">Source</th>
+                        <th className="px-3 py-2 font-medium">Reviewer Comment</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-sova-border">
@@ -262,6 +311,19 @@ export default function Workbench() {
                             <Link to="/rules" className="text-xs text-sova-accent hover:underline font-mono truncate max-w-[150px] inline-block" title={row.source_page || "View Rules"}>
                               {row.source_page || "Trace"}
                             </Link>
+                          </td>
+                          <td className="px-3 py-2 min-w-[200px]">
+                            {task.approval_status === "PENDING" && (user?.role === "REVIEWER" || user?.role === "ADMIN") ? (
+                              <input
+                                type="text"
+                                value={rowComments[i] || ""}
+                                onChange={(e) => setRowComments(prev => ({ ...prev, [i]: e.target.value }))}
+                                placeholder="Add note..."
+                                className="w-full bg-sova-bg border border-sova-border rounded px-2 py-1 text-xs outline-none focus:border-sova-accent"
+                              />
+                            ) : (
+                              <span className="text-xs text-sova-subtext">{row.reviewer_comment || "-"}</span>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -302,6 +364,17 @@ export default function Workbench() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {!isRunning && task.verification?.warnings?.length > 0 && (
+              <div className="card border-amber-500/40 bg-amber-900/10">
+                <div className="text-sm font-medium text-amber-400 mb-2">Warnings</div>
+                <ul className="list-disc list-inside text-xs text-amber-200/80 space-y-1">
+                  {task.verification.warnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
               </div>
             )}
 

@@ -11,6 +11,67 @@ from ..agent.llm_client import list_local_models
 
 router = APIRouter(tags=["misc"])
 
+@router.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+@router.get("/version")
+def version():
+    return {"version": "0.2.0-mvp"}
+
+@router.get("/ready")
+def ready_check(db: Session = Depends(get_db)):
+    try:
+        # Check DB
+        db.execute("SELECT 1")
+        # Check Chroma
+        from ..tools.rag_store import _collection
+        if not _collection:
+            raise Exception("Chroma collection not initialized")
+        _collection.count()
+        return {"status": "ready"}
+    except Exception as e:
+        raise HTTPException(503, f"Service not fully ready: {e}")
+
+
+@router.get("/aliases")
+def get_aliases(db: Session = Depends(get_db)):
+    from ..core.db import ParameterAlias
+    aliases = db.query(ParameterAlias).all()
+    return [{"id": a.id, "canonical_name": a.canonical_name, "alias": a.alias} for a in aliases]
+
+
+from pydantic import BaseModel
+class AliasCreate(BaseModel):
+    canonical_name: str
+    alias: str
+
+
+@router.post("/aliases")
+def create_alias(payload: AliasCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if user.role != "ADMIN":
+        raise HTTPException(403, "Only ADMIN can manage aliases")
+    from ..core.db import ParameterAlias, create_audit_log
+    new_alias = ParameterAlias(canonical_name=payload.canonical_name.lower().strip(), alias=payload.alias.lower().strip())
+    db.add(new_alias)
+    db.commit()
+    create_audit_log(db, user_id=user.id, action="CREATE_ALIAS", detail=f"Added alias '{payload.alias}' for '{payload.canonical_name}'")
+    return {"id": new_alias.id, "canonical_name": new_alias.canonical_name, "alias": new_alias.alias}
+
+
+@router.delete("/aliases/{alias_id}")
+def delete_alias(alias_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if user.role != "ADMIN":
+        raise HTTPException(403, "Only ADMIN can manage aliases")
+    from ..core.db import ParameterAlias, create_audit_log
+    alias = db.query(ParameterAlias).filter(ParameterAlias.id == alias_id).first()
+    if not alias:
+        raise HTTPException(404, "Alias not found")
+    db.delete(alias)
+    db.commit()
+    create_audit_log(db, user_id=user.id, action="DELETE_ALIAS", detail=f"Deleted alias '{alias.alias}' for '{alias.canonical_name}'")
+    return {"status": "ok"}
+
 
 @router.get("/models")
 def get_models():
@@ -19,6 +80,36 @@ def get_models():
         "registry": MODEL_REGISTRY,
         "installed_locally": installed,
         "available_ram_gb": available_ram_gb(),
+    }
+
+
+@router.get("/metrics")
+def get_metrics(db: Session = Depends(get_db)):
+    from ..core.db import Task
+    tasks = db.query(Task).all()
+    total_tasks = len(tasks)
+    
+    status_counts = {}
+    approval_counts = {}
+    
+    total_processing_time = 0
+    completed_tasks_with_time = 0
+    
+    for t in tasks:
+        status_counts[t.status] = status_counts.get(t.status, 0) + 1
+        approval_counts[t.approval_status] = approval_counts.get(t.approval_status, 0) + 1
+        
+        if t.completed_at and t.created_at:
+            total_processing_time += (t.completed_at - t.created_at).total_seconds()
+            completed_tasks_with_time += 1
+            
+    avg_processing_time = total_processing_time / completed_tasks_with_time if completed_tasks_with_time > 0 else 0
+    
+    return {
+        "total_tasks": total_tasks,
+        "status_counts": status_counts,
+        "approval_counts": approval_counts,
+        "avg_processing_time_seconds": avg_processing_time
     }
 
 

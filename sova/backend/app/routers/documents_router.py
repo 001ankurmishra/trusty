@@ -172,8 +172,50 @@ def get_project_rules(project_id: str, db: Session = Depends(get_db), user: User
     chunks = rag_store.get_project_rules(project_id)
     rules = []
     for chunk_data in chunks:
-        extracted = compliance._extract_rules(chunk_data["chunk"])
+        extracted = compliance._extract_rules(chunk_data["chunk"], chunk_data.get("filename", "unknown"), chunk_data.get("version", "1.0"), chunk_data.get("page", 1))
         for r in extracted:
-            r["source_page"] = f"{chunk_data['filename']} v{chunk_data['version']} p.{chunk_data['page']}"
             rules.append(r)
     return {"rules": rules}
+
+
+from pydantic import BaseModel
+class DocumentUpdate(BaseModel):
+    doc_role: str
+    version: str
+    status: str
+
+
+@router.put("/{doc_id}")
+def update_document(
+    doc_id: str,
+    payload: DocumentUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(404, "Document not found")
+        
+    _check_project_access(doc.project_id, user, db)
+    
+    doc.doc_role = payload.doc_role
+    doc.version = payload.version
+    doc.status = payload.status
+    db.commit()
+    
+    # Also update RAG store metadata
+    from ..tools.rag_store import _collection
+    try:
+        if _collection:
+            res = _collection.get(where={"doc_id": doc_id})
+            if res and "ids" in res and res["ids"]:
+                metadatas = res["metadatas"]
+                for m in metadatas:
+                    m["doc_role"] = payload.doc_role
+                    m["version"] = payload.version
+                _collection.update(ids=res["ids"], metadatas=metadatas)
+    except Exception as e:
+        print(f"Warning: Failed to update RAG store metadata: {e}")
+        
+    create_audit_log(db, user.id, "UPDATE_DOCUMENT", f"Updated doc {doc_id} to {payload.doc_role} v{payload.version}")
+    return {"status": "ok"}

@@ -24,7 +24,11 @@ export default function Layout({ children }) {
     { title: "Overview", items: [{ to: "/", label: "Dashboard", icon: "◧" }] },
     { title: "Workspace", items: workspaceItems },
     { title: "Intelligence", items: [{ to: "/models", label: "Model Router", icon: "◎" }] },
-    { title: "Governance", items: [{ to: "/security", label: "Security", icon: "◈" }, { to: "/audit", label: "Audit Log", icon: "≡" }] },
+    { title: "Governance", items: [
+      { to: "/security", label: "Security", icon: "◈" }, 
+      { to: "/audit", label: "Audit Log", icon: "≡" },
+      { to: "/metrics", label: "Metrics", icon: "▤" }
+    ] },
   ];
 
   useEffect(() => {

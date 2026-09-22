@@ -46,6 +46,21 @@ def _run_task_background(task_id: str, input_text: str, project_id: str,
                           has_image: bool, user_id: str, user_role: str):
     """Run the agent in a background thread and update the DB with results."""
     from ..core.db import SessionLocal
+    
+    db = SessionLocal()
+    try:
+        t = db.query(Task).filter(Task.id == task_id).first()
+        if not t:
+            return
+        if t.status == "CANCELED":
+            return # Task was canceled before it even started
+            
+        t.status = "RUNNING"
+        db.commit()
+    except Exception:
+        pass
+    finally:
+        db.close()
 
     def step_callback(steps):
         """Persist steps to DB in real-time for live timeline polling."""
@@ -137,7 +152,7 @@ def _run_task_background(task_id: str, input_text: str, project_id: str,
 def create_and_run_task(payload: TaskIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _check_project_access(payload.project_id, user, db)
 
-    task = Task(project_id=payload.project_id, user_id=user.id, input_text=payload.input_text, status="RUNNING")
+    task = Task(project_id=payload.project_id, user_id=user.id, input_text=payload.input_text, status="RECEIVED")
     db.add(task)
     db.commit()
     task_id = task.id
@@ -149,11 +164,11 @@ def create_and_run_task(payload: TaskIn, db: Session = Depends(get_db), user: Us
         payload.has_image, user.id, user.role,
     )
 
-    return _serialize_task(task)
+    return _serialize_task(task, db)
 
 
-def _serialize_task(task: Task):
-    return {
+def _serialize_task(task: Task, db: Session = None):
+    data = {
         "id": task.id, "status": task.status, "input_text": task.input_text,
         "selected_model": task.selected_model, "model_reason": task.model_reason,
         "steps": json.loads(task.steps_json), "sources": json.loads(task.sources_json),
@@ -163,6 +178,16 @@ def _serialize_task(task: Task):
         "requires_approval": task.requires_approval, "approval_status": task.approval_status,
         "artifact_id": task.artifact_id, "created_at": task.created_at.isoformat(),
     }
+    
+    # Calculate queue position for RECEIVED tasks
+    if task.status == "RECEIVED" and db:
+        older_tasks = db.query(Task).filter(
+            Task.status == "RECEIVED",
+            Task.created_at < task.created_at
+        ).count()
+        data["queue_position"] = older_tasks + 1
+        
+    return data
 
 
 @router.get("/{task_id}")
@@ -171,14 +196,29 @@ def get_task(task_id: str, db: Session = Depends(get_db), user: User = Depends(g
     if not task:
         raise HTTPException(404, "Task not found")
     _check_project_access(task.project_id, user, db)
-    return _serialize_task(task)
+    return _serialize_task(task, db)
 
 
 @router.get("/project/{project_id}")
 def list_tasks(project_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _check_project_access(project_id, user, db)
     tasks = db.query(Task).filter(Task.project_id == project_id).order_by(Task.created_at.desc()).all()
-    return [_serialize_task(t) for t in tasks]
+    return [_serialize_task(t, db) for t in tasks]
+
+
+@router.post("/{task_id}/cancel")
+def cancel_task(task_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(404, "Task not found")
+    _check_project_access(task.project_id, user, db)
+    
+    if task.status in ["RECEIVED", "RUNNING"]:
+        task.status = "CANCELED"
+        task.result_text = "Task was canceled by user."
+        db.commit()
+    
+    return _serialize_task(task, db)
 
 
 from ..core.auth import get_current_user, require_role, verify_password
@@ -205,6 +245,7 @@ def list_inbox_tasks(db: Session = Depends(get_db), user: User = Depends(require
 class ApprovalIn(BaseModel):
     comment: str = ""
     password: str = ""
+    row_comments: dict = {}
 
 
 @router.post("/{task_id}/approve")
@@ -232,7 +273,7 @@ def approve_task(
         raise HTTPException(403, "Four-eyes principle: you cannot approve your own task. A different reviewer is required.")
 
     task.approval_status = "APPROVED"
-    task.status = "COMPLETED"
+    task.status = "DONE"
     steps = json.loads(task.steps_json)
     steps.append({
         "step": "Human review completed",
@@ -242,6 +283,14 @@ def approve_task(
         "timestamp": datetime.datetime.utcnow().isoformat(),
     })
     task.steps_json = json.dumps(steps)
+    
+    compliance_table = json.loads(task.compliance_json) if task.compliance_json else []
+    if payload.row_comments and compliance_table:
+        for idx, row in enumerate(compliance_table):
+            if str(idx) in payload.row_comments:
+                row["reviewer_comment"] = payload.row_comments[str(idx)]
+        task.compliance_json = json.dumps(compliance_table)
+
     db.commit()
 
     # Regenerate DOCX with approval info
@@ -258,7 +307,7 @@ def approve_task(
                 calculations="",
                 recommendations="",
                 verification=verification,
-                compliance_table=json.loads(task.compliance_json) if task.compliance_json else [],
+                compliance_table=compliance_table,
                 reviewer_name=user.username,
                 decision="APPROVED",
                 decision_timestamp=datetime.datetime.utcnow().isoformat(),
@@ -321,6 +370,14 @@ def reject_task(
         "timestamp": datetime.datetime.utcnow().isoformat(),
     })
     task.steps_json = json.dumps(steps)
+
+    compliance_table = json.loads(task.compliance_json) if task.compliance_json else []
+    if payload.row_comments and compliance_table:
+        for idx, row in enumerate(compliance_table):
+            if str(idx) in payload.row_comments:
+                row["reviewer_comment"] = payload.row_comments[str(idx)]
+        task.compliance_json = json.dumps(compliance_table)
+
     db.commit()
     create_audit_log(
         db,

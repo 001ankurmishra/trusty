@@ -10,6 +10,7 @@ import Audit from "./pages/Audit.jsx";
 import Rules from "./pages/Rules.jsx";
 import Inbox from "./pages/Inbox.jsx";
 import ModelRouterPage from "./pages/ModelRouterPage.jsx";
+import Metrics from "./pages/Metrics.jsx";
 
 function Protected({ user, children }) {
   if (!user) return <Navigate to="/login" replace />;
@@ -35,6 +36,7 @@ export default function App() {
                   <Route path="/rules" element={<Rules />} />
                   <Route path="/inbox" element={<Inbox />} />
                   <Route path="/models" element={<ModelRouterPage />} />
+                  <Route path="/metrics" element={<Metrics />} />
                   <Route path="/security" element={<Security />} />
                   <Route path="/audit" element={<Audit />} />
                 </Routes>

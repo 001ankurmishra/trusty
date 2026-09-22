@@ -32,7 +32,7 @@ def evaluate(measured_val, limit_val, operator):
         return measured_val >= limit_val
     return False
 
-def _extract_rules(text):
+def _extract_rules(text, filename="unknown", version="1.0", page=1):
     """
     Extract SOP rules using regex, fallback to LLM if empty.
     """
@@ -49,7 +49,8 @@ def _extract_rules(text):
             "parameter": param,
             "operator": operator,
             "limit": limit_val,
-            "unit": unit
+            "unit": unit,
+            "source_page": f"{filename} v{version} p.{page}"
         })
         
     if not rules:
@@ -75,7 +76,8 @@ def _extract_rules(text):
                             "parameter": str(r["parameter"]).strip().lower(),
                             "operator": "max" if "max" in str(r["operator"]).lower() else "min",
                             "limit": float(r["limit"]),
-                            "unit": str(r["unit"])
+                            "unit": str(r["unit"]),
+                            "source_page": f"{filename} v{version} p.{page}"
                         })
         except Exception as e:
             print("LLM rule extraction failed:", e)
@@ -132,19 +134,43 @@ def _extract_measurements(text, filename, version, page):
 
 def _fuzzy_match(meas_param, rule_param):
     """Very simple fuzzy matching logic based on common words."""
+    from ..core.db import SessionLocal, ParameterAlias
+    
+    db = SessionLocal()
+    try:
+        aliases = db.query(ParameterAlias).all()
+        alias_map = {a.alias: a.canonical_name for a in aliases}
+    finally:
+        db.close()
+        
     meas_words = set(meas_param.split())
     rule_words = set(rule_param.split())
     
+    # Apply aliases
+    meas_words_expanded = set()
+    for w in meas_words:
+        if w in alias_map:
+            meas_words_expanded.update(alias_map[w].split())
+        else:
+            meas_words_expanded.add(w)
+            
+    rule_words_expanded = set()
+    for w in rule_words:
+        if w in alias_map:
+            rule_words_expanded.update(alias_map[w].split())
+        else:
+            rule_words_expanded.add(w)
+    
     # Specific edge cases for the acceptance test
-    if "pressure" in meas_words and "pressure" in rule_words:
+    if "pressure" in meas_words_expanded and "pressure" in rule_words_expanded:
         return True
-    if "temperature" in meas_words and "temperature" in rule_words:
+    if "temperature" in meas_words_expanded and "temperature" in rule_words_expanded:
         return True
-    if "thickness" in meas_words and "thickness" in rule_words:
+    if "thickness" in meas_words_expanded and "thickness" in rule_words_expanded:
         return True
         
     stop_words = {"operating", "current", "measured", "allowable", "working", "internal", "external", "maximum", "minimum", "max", "min"}
-    common = meas_words.intersection(rule_words) - stop_words
+    common = meas_words_expanded.intersection(rule_words_expanded) - stop_words
     return len(common) > 0
 
 def _extract_asset_info(text):
@@ -179,7 +205,7 @@ def extract_and_evaluate(sources, task_text, project_id=None):
         
         # SOPs define limits
         if doc_role == "SOP":
-            rules.extend(_extract_rules(text))
+            rules.extend(_extract_rules(text, source.get("filename", "unknown"), version, source.get("page", 1)))
         # Inspection reports define measurements
         elif doc_role == "INSPECTION_REPORT":
             chunk_meas = _extract_measurements(text, source.get("filename", "unknown"), version, source.get("page", 1))
@@ -268,7 +294,7 @@ def extract_and_evaluate(sources, task_text, project_id=None):
                 "measured": f"{meas['value']} {meas['unit']}",
                 "limit": "Ambiguous rules",
                 "status": "NEEDS_REVIEW",
-                "source_page": meas["source_page"]
+                "source_page": f"Meas: {meas['source_page']} | Rules: " + ", ".join([r["source_page"] for r in matched_rules])
             })
             continue
             
@@ -286,7 +312,7 @@ def extract_and_evaluate(sources, task_text, project_id=None):
             "measured": f"{meas['value']} {meas['unit']}",
             "limit": f"{rule['operator'].upper()} {rule['limit']} {rule['unit']}",
             "status": status,
-            "source_page": meas["source_page"]
+            "source_page": f"{meas['source_page']} => {rule['source_page']}"
         })
         
         # If this is thickness, check if we can compute remaining life

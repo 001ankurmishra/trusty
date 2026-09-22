@@ -258,6 +258,16 @@ def run_task(task_text: str, project_id: str, has_image: bool = False,
             _step(steps, "Compliance check", "DONE",
                   f"Extracted {len(compliance_table)} measurement(s) vs limits", step_callback)
 
+        warnings = []
+        if contextual_request or compliance_table:
+            roles = [s.get("doc_role", "OTHER") for s in sources]
+            if "SOP" not in roles:
+                warnings.append("WARNING: No 'SOP' document found in retrieved context. Limits may be missing.")
+            if "INSPECTION_REPORT" not in roles:
+                warnings.append("WARNING: No 'INSPECTION_REPORT' document found in retrieved context. Measurements may be missing.")
+        
+        verification["warnings"] = warnings
+
         # 6. VERIFY
         grounding = verifier.verify_grounding(result_text, sources)
         verification["source_verification"] = "PASS" if (sources and grounding["citations_valid"] and grounding["numbers_grounded"]) else "FAIL"

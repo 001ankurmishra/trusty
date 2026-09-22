@@ -5,10 +5,42 @@ from .core.db import init_db
 from .core.security_monitor import install_network_guard
 from .routers import auth_router, projects_router, documents_router, tasks_router, misc_router
 
+from .core.logging import setup_logging
+
+setup_logging()
 install_network_guard()  # must run before anything else touches sockets
 init_db()
 
-app = FastAPI(title="TrustForge", version="0.2.0-mvp")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 1. Interrupt orphaned tasks
+    import logging
+    from .core.db import SessionLocal, Task
+    log = logging.getLogger("trustforge.startup")
+    
+    db = SessionLocal()
+    try:
+        orphans = db.query(Task).filter(Task.status.in_(["RECEIVED", "RUNNING"])).all()
+        if orphans:
+            log.warning(f"Found {len(orphans)} orphaned tasks. Marking as FAILED.")
+            for t in orphans:
+                t.status = "FAILED"
+                t.result_text = "Task interrupted by server restart."
+            db.commit()
+    except Exception as e:
+        log.error(f"Failed to interrupt orphaned tasks: {e}")
+    finally:
+        db.close()
+        
+    # 2. Launch warm-up in background
+    t = threading.Thread(target=_warmup, daemon=True, name="trustforge-warmup")
+    t.start()
+    
+    yield
+
+app = FastAPI(title="TrustForge", version="0.2.0-mvp", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,9 +91,3 @@ def _warmup():
     except Exception as e:
         log.warning(f"Warm-up: model ping failed: {e}")
 
-
-@app.on_event("startup")
-async def startup_warmup():
-    """Launch warm-up in a background thread so it doesn't block server startup."""
-    t = threading.Thread(target=_warmup, daemon=True, name="trustforge-warmup")
-    t.start()

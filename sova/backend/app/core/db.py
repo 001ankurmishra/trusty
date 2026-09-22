@@ -123,6 +123,13 @@ class AssetHistory(Base):
     thickness = Column(Float, nullable=False)
 
 
+class ParameterAlias(Base):
+    __tablename__ = "parameter_aliases"
+    id = Column(String, primary_key=True, default=gen_id)
+    canonical_name = Column(String, nullable=False)
+    alias = Column(String, nullable=False)
+
+
 def init_db():
     Base.metadata.create_all(engine)
     # Safe migration: add new columns if they don't exist (for pre-existing DBs)
