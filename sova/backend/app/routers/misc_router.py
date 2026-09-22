@@ -121,6 +121,7 @@ def security_status():
         "outbound_network_enabled": settings.OUTBOUND_NETWORK,
         "blocked_attempts": counters["blocked_attempts"],
         "external_calls_succeeded": counters["external_calls_succeeded"],
+        "ollama_external_calls": counters.get("ollama_external_calls", 0),
         "total_socket_events": len(events),
         "recent_events": events[-30:],
         "cpu_percent": psutil.cpu_percent(),
@@ -141,6 +142,7 @@ def security_selftest():
         **result,
         "blocked_attempts": counters["blocked_attempts"],
         "external_calls_succeeded": counters["external_calls_succeeded"],
+        "ollama_external_calls": counters.get("ollama_external_calls", 0),
     }
 
 

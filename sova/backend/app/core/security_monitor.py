@@ -26,6 +26,7 @@ _MAX_EVENTS = 500
 # Counters
 blocked_attempts = 0
 external_calls_succeeded = 0  # must stay 0 in air-gapped mode
+ollama_external_calls = 0     # track permitted external ollama calls
 _counters_lock = threading.Lock()
 
 LOOPBACK_NETS = [
@@ -45,14 +46,17 @@ def _is_local(host: str) -> bool:
         # hostname that isn't an IP literal — only 'localhost' is local
         return host.lower() == "localhost"
 
+def _is_ollama_allowed(host: str) -> bool:
+    """Check if a host is permitted by OLLAMA_ALLOWED_HOSTS config."""
+    return host in settings.OLLAMA_ALLOWED_HOSTS or host == "127.0.0.1" or host == "localhost"
 
-def _record_event(host: str, port, is_local: bool, blocked: bool):
-    global blocked_attempts, external_calls_succeeded
+def _record_event(host: str, port, is_local: bool, is_ollama_allowed: bool, blocked: bool):
+    global blocked_attempts, external_calls_succeeded, ollama_external_calls
     event = {
         "timestamp": datetime.datetime.utcnow().isoformat(),
         "host": host,
         "port": port,
-        "allowed": is_local,
+        "allowed": is_local or is_ollama_allowed,
         "blocked": blocked,
     }
     with _events_lock:
@@ -62,6 +66,8 @@ def _record_event(host: str, port, is_local: bool, blocked: bool):
     with _counters_lock:
         if blocked:
             blocked_attempts += 1
+        elif not is_local and is_ollama_allowed:
+            ollama_external_calls += 1
         elif not is_local:
             external_calls_succeeded += 1
 
@@ -91,30 +97,32 @@ def _extract_host_port(address):
 def _guarded_connect(self, address, *args, **kwargs):
     host, port = _extract_host_port(address)
     is_local = _is_local(host)
+    is_ollama_allowed = _is_ollama_allowed(host)
 
-    if not is_local and not settings.OUTBOUND_NETWORK:
-        _record_event(host, port, is_local, blocked=True)
+    if not is_local and not is_ollama_allowed and not settings.OUTBOUND_NETWORK:
+        _record_event(host, port, is_local, is_ollama_allowed, blocked=True)
         raise ConnectionError(
             f"[TrustForge Security] Outbound connection to '{host}:{port}' "
             f"blocked (air-gapped mode). Set OUTBOUND_NETWORK=true to allow."
         )
 
-    _record_event(host, port, is_local, blocked=False)
+    _record_event(host, port, is_local, is_ollama_allowed, blocked=False)
     return _original_connect(self, address, *args, **kwargs)
 
 
 def _guarded_connect_ex(self, address, *args, **kwargs):
     host, port = _extract_host_port(address)
     is_local = _is_local(host)
+    is_ollama_allowed = _is_ollama_allowed(host)
 
-    if not is_local and not settings.OUTBOUND_NETWORK:
-        _record_event(host, port, is_local, blocked=True)
+    if not is_local and not is_ollama_allowed and not settings.OUTBOUND_NETWORK:
+        _record_event(host, port, is_local, is_ollama_allowed, blocked=True)
         raise ConnectionError(
             f"[TrustForge Security] Outbound connection to '{host}:{port}' "
             f"blocked (air-gapped mode)."
         )
 
-    _record_event(host, port, is_local, blocked=False)
+    _record_event(host, port, is_local, is_ollama_allowed, blocked=False)
     return _original_connect_ex(self, address, *args, **kwargs)
 
 
@@ -122,15 +130,16 @@ def _guarded_create_connection(address, *args, **kwargs):
     host = address[0] if isinstance(address, tuple) else str(address)
     port = address[1] if isinstance(address, tuple) and len(address) >= 2 else None
     is_local = _is_local(host)
+    is_ollama_allowed = _is_ollama_allowed(host)
 
-    if not is_local and not settings.OUTBOUND_NETWORK:
-        _record_event(host, port, is_local, blocked=True)
+    if not is_local and not is_ollama_allowed and not settings.OUTBOUND_NETWORK:
+        _record_event(host, port, is_local, is_ollama_allowed, blocked=True)
         raise ConnectionError(
             f"[TrustForge Security] Outbound connection to '{host}' "
             f"blocked (air-gapped mode)."
         )
 
-    _record_event(host, port, is_local, blocked=False)
+    _record_event(host, port, is_local, is_ollama_allowed, blocked=False)
     return _original_create_connection(address, *args, **kwargs)
 
 
@@ -151,6 +160,7 @@ def get_counters():
         return {
             "blocked_attempts": blocked_attempts,
             "external_calls_succeeded": external_calls_succeeded,
+            "ollama_external_calls": ollama_external_calls,
         }
 
 

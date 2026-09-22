@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     RAG_DISTANCE_THRESHOLD: float = 1.2
     
     ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1"]
+    OLLAMA_ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1"]
     
     SIGNING_PRIVATE_KEY_PATH: str = f"{BASE_DIR}/storage/private_key.pem"
     SIGNING_PUBLIC_KEY_PATH: str = f"{BASE_DIR}/storage/public_key.pem"

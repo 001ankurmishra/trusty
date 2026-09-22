@@ -19,3 +19,9 @@ def test_config_allows_weak_secret_in_dev(monkeypatch):
     monkeypatch.setenv("SECRET_KEY", "sova-local-dev-secret-change-me")
     settings = Settings()
     assert settings.APP_ENV == "development"
+
+def test_config_parses_ollama_allowed_hosts(monkeypatch):
+    monkeypatch.setenv("OLLAMA_ALLOWED_HOSTS", '["192.168.1.100", "ollama.local"]')
+    settings = Settings()
+    assert "192.168.1.100" in settings.OLLAMA_ALLOWED_HOSTS
+    assert "ollama.local" in settings.OLLAMA_ALLOWED_HOSTS

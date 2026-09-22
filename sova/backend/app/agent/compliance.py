@@ -1,4 +1,5 @@
 import re
+from ..core.config import settings
 
 # Unit conversions to a base unit for comparison
 UNIT_MULTIPLIERS = {
@@ -58,7 +59,7 @@ def _extract_rules(text, filename="unknown", version="1.0", page=1):
         from .llm_client import generate
         prompt = f"Extract compliance rules (maximum or minimum limits) from this text.\n\nTEXT:\n{text}\n\nRespond ONLY with a JSON array of objects. Keys: parameter (string), operator ('max' or 'min'), limit (float), unit (string)."
         try:
-            res = generate("qwen2.5:3b-instruct", prompt, system="You are a JSON extractor.", max_tokens=300)
+            res = generate(settings.REASONING_MODEL, prompt, system="You are a JSON extractor.", max_tokens=300)
             import json
             import re as regex
             
@@ -108,7 +109,7 @@ def _extract_measurements(text, filename, version, page):
         from .llm_client import generate
         prompt = f"Extract physical measurements from this inspection report.\n\nTEXT:\n{text}\n\nRespond ONLY with a JSON array of objects. Keys: parameter (string), value (float), unit (string)."
         try:
-            res = generate("qwen2.5:3b-instruct", prompt, system="You are a JSON extractor.", max_tokens=300)
+            res = generate(settings.REASONING_MODEL, prompt, system="You are a JSON extractor.", max_tokens=300)
             import json
             import re as regex
             
