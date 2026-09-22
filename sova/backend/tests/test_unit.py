@@ -114,6 +114,15 @@ def test_sandbox_rejects_imports():
     assert res["ok"] == False
     assert "Forbidden import" in res["stderr"]
 
+def test_sandbox_docker_isolation():
+    """Sandbox blocks network calls natively or fails closed if Docker missing."""
+    code = "import urllib.request\nurllib.request.urlopen('http://8.8.8.8')"
+    res = run_python(code)
+    assert res["ok"] == False
+    assert res["returncode"] in [-1, -3, 1]
+    # If Docker runs it, it should fail due to network isolation.
+    # If Docker isn't installed, it returns -3.
+
 def test_audit_hash_chain():
     """Audit hash chain detects tampering."""
     from app.core.db import create_audit_log, compute_audit_hash, AuditLog
@@ -166,4 +175,40 @@ def test_audit_hash_chain():
         prev = log.entry_hash
         
     assert ok == False
+    db.close()
+
+def test_audit_all_requires_admin(client, auth_headers):
+    # Non-admin
+    res = client.get("/audit/all", headers=auth_headers("user1", "user123"))
+    assert res.status_code == 403
+
+    # Admin
+    res2 = client.get("/audit/all", headers=auth_headers("admin", "admin123"))
+    assert res2.status_code == 200
+
+def test_delete_document(client, auth_headers):
+    # Setup document via DB directly to avoid file upload logic complexity in tests
+    from tests.conftest import TestingSessionLocal
+    from app.core.db import Document
+    db = TestingSessionLocal()
+    doc = Document(id="doc_del_test", filename="test.pdf", filepath="/tmp/test.pdf", file_type="pdf", project_id="proj1", uploader_id="user1_id", status="ACTIVE")
+    db.add(doc)
+    db.commit()
+    db.close()
+    
+    headers_user1 = auth_headers("user1", "user123")
+    headers_user2 = auth_headers("user2", "user223") # Assuming user2 not in proj1 or is not admin/uploader
+    headers_admin = auth_headers("admin", "admin123")
+    
+    # 1. User2 (no access) cannot delete
+    res = client.delete("/documents/doc_del_test", headers=headers_user2)
+    assert res.status_code in [403, 404]  # Depending on if it fails at project check or delete check
+    
+    # 2. User1 (uploader) CAN delete
+    res2 = client.delete("/documents/doc_del_test", headers=headers_user1)
+    assert res2.status_code == 200
+    
+    # Verify it's gone
+    db = TestingSessionLocal()
+    assert db.query(Document).filter(Document.id == "doc_del_test").first() is None
     db.close()

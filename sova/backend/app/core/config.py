@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # Ollama endpoints - all local, no cloud calls ever
     OLLAMA_URL: str = "http://localhost:11434"
-    REASONING_MODEL: str = "qwen2.5:3b-instruct"
+    REASONING_MODEL: str = "llama3.2"
     CODING_MODEL: str = "qwen2.5-coder:1.5b"
     VISION_MODEL: str = "moondream"
     EMBED_MODEL_LOCAL: str = "all-MiniLM-L6-v2"

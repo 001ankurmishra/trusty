@@ -3,7 +3,7 @@ import psutil
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..core.db import get_db, AuditLog, User, compute_audit_hash
-from ..core.auth import get_current_user
+from ..core.auth import get_current_user, require_role
 from ..core.config import settings
 from ..core import security_monitor
 from ..agent.model_router import MODEL_REGISTRY, available_ram_gb
@@ -158,7 +158,7 @@ def audit_logs(project_id: str, db: Session = Depends(get_db), user: User = Depe
 
 
 @router.get("/audit/all")
-def all_audit_logs(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def all_audit_logs(db: Session = Depends(get_db), admin: User = Depends(require_role("ADMIN"))):
     logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(200).all()
     return [{
         "id": l.id, "user_id": l.user_id, "action": l.action, "detail": l.detail,

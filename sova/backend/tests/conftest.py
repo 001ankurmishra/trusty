@@ -17,7 +17,22 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
-    Base.metadata.create_all(bind=engine)
+    import alembic.config
+    import alembic.command
+    import os
+    
+    # Remove test DB if exists
+    if os.path.exists("./test.db"):
+        os.remove("./test.db")
+        
+    alembic_ini_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "alembic.ini")
+    alembic_cfg = alembic.config.Config(alembic_ini_path)
+    script_location = os.path.join(os.path.dirname(alembic_ini_path), "alembic")
+    
+    alembic_cfg.set_main_option("script_location", script_location)
+    alembic_cfg.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL)
+    alembic.command.upgrade(alembic_cfg, "head")
+        
     db = TestingSessionLocal()
     
     # Create test users
@@ -54,6 +69,8 @@ def override_get_db():
     finally:
         db.close()
 
+import app.core.db as core_db
+core_db.SessionLocal = TestingSessionLocal
 app.dependency_overrides[get_db] = override_get_db
 
 @pytest.fixture(scope="module")

@@ -131,32 +131,27 @@ class ParameterAlias(Base):
 
 
 def init_db():
-    Base.metadata.create_all(engine)
-    # Safe migration: add new columns if they don't exist (for pre-existing DBs)
-    _safe_add_column("artifacts", "sha256", "TEXT DEFAULT ''")
-    _safe_add_column("audit_logs", "prev_hash", "TEXT DEFAULT ''")
-    _safe_add_column("audit_logs", "entry_hash", "TEXT DEFAULT ''")
-    _safe_add_column("tasks", "compliance_json", "TEXT DEFAULT '[]'")
-    _safe_add_column("documents", "doc_role", "TEXT DEFAULT 'OTHER'")
-    _safe_add_column("documents", "status", "TEXT DEFAULT 'ACTIVE'")
-    _safe_add_column("documents", "effective_date", "DATETIME")
-
-
-def _safe_add_column(table: str, column: str, col_type: str):
-    """Add a column to a table if it doesn't exist (SQLite safe migration)."""
-    import sqlite3
-    db_path = settings.DATABASE_URL.replace("sqlite:///", "")
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(f"PRAGMA table_info({table})")
-        columns = [row[1] for row in cursor.fetchall()]
-        if column not in columns:
-            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
-            conn.commit()
-        conn.close()
-    except Exception:
-        pass  # table may not exist yet; create_all will handle it
+    import alembic.config
+    import alembic.command
+    import os
+    
+    # Run Alembic migrations programmatically
+    alembic_ini_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "alembic.ini")
+    
+    if os.path.exists(alembic_ini_path):
+        alembic_cfg = alembic.config.Config(alembic_ini_path)
+        # Point to the correct script location
+        script_location = os.path.join(os.path.dirname(alembic_ini_path), "alembic")
+        alembic_cfg.set_main_option("script_location", script_location)
+        try:
+            alembic.command.upgrade(alembic_cfg, "head")
+        except Exception as e:
+            import logging
+            logging.getLogger("trustforge.db").error(f"Alembic migration failed: {e}")
+            raise
+    else:
+        # Fallback if alembic.ini is completely missing (should not happen in normal deployments)
+        Base.metadata.create_all(engine)
 
 
 def get_db():

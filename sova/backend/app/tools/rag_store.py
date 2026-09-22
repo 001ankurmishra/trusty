@@ -119,3 +119,12 @@ def get_project_rules(project_id: str):
                 "page": meta["page"]
             })
     return out
+
+
+def delete_document(doc_id: str):
+    """
+    Delete all chunks associated with a specific document ID.
+    """
+    _collection.delete(where={"document_id": doc_id})
+    # Also attempt to delete vision chunks if they exist
+    _collection.delete(where={"document_id": f"{doc_id}_vision"})

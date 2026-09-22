@@ -91,28 +91,21 @@ def run_python(code: str, timeout: int = None):
         with open(script_path, "w") as f:
             f.write(GUARD_PREAMBLE + "\n" + code)
 
-        # Build environment: minimal PATH only
-        env = {"PATH": os.environ.get("PATH", "")}
-
-        # POSIX resource limits via ulimit-style preexec
-        preexec = None
-        if sys.platform != "win32":
-            def preexec():
-                import resource
-                # CPU time limit: timeout + 5s grace
-                resource.setrlimit(resource.RLIMIT_CPU, (timeout + 5, timeout + 10))
-                # Memory limit: 256MB
-                mem_limit = 256 * 1024 * 1024
-                resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
-
+        # Execute via Docker container for robust isolation
         proc = subprocess.run(
-            [sys.executable, "-I", script_path],
+            [
+                "docker", "run", "--rm",
+                "--network", "none",
+                "--memory", "256m",
+                "--cpus", "1.0",
+                "-v", f"{tmpdir}:/tmp/workspace",
+                "-w", "/tmp/workspace",
+                "python:3.11-slim",
+                "python", "script.py"
+            ],
             capture_output=True,
             text=True,
             timeout=timeout,
-            env=env,
-            cwd=tmpdir,
-            preexec_fn=preexec,
         )
         return {
             "ok": proc.returncode == 0,
@@ -122,6 +115,14 @@ def run_python(code: str, timeout: int = None):
         }
     except subprocess.TimeoutExpired:
         return {"ok": False, "stdout": "", "stderr": f"Execution timed out after {timeout}s", "returncode": -1}
+    except FileNotFoundError:
+        # Fail closed if Docker is not installed on the host
+        return {
+            "ok": False,
+            "stdout": "",
+            "stderr": "Docker is required for secure sandboxed execution but is not installed or not in PATH.",
+            "returncode": -3,
+        }
     finally:
         # Clean up temp directory
         shutil.rmtree(tmpdir, ignore_errors=True)

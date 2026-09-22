@@ -219,3 +219,39 @@ def update_document(
         
     create_audit_log(db, user.id, "UPDATE_DOCUMENT", f"Updated doc {doc_id} to {payload.doc_role} v{payload.version}")
     return {"status": "ok"}
+
+
+@router.delete("/{doc_id}")
+def delete_document(
+    doc_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(404, "Document not found")
+
+    _check_project_access(doc.project_id, user, db)
+
+    if user.role != "ADMIN" and doc.uploader_id != user.id:
+        raise HTTPException(403, "Only an ADMIN or the original uploader can delete this document")
+
+    # 1. Delete from ChromaDB
+    from ..tools.rag_store import delete_document as rag_delete
+    rag_delete(doc_id)
+
+    # 2. Delete file from disk
+    if doc.filepath and os.path.exists(doc.filepath):
+        try:
+            os.remove(doc.filepath)
+        except OSError as e:
+            print(f"Warning: Failed to delete file {doc.filepath}: {e}")
+
+    # 3. Delete from DB
+    db.delete(doc)
+    db.commit()
+
+    # 4. Audit Log
+    create_audit_log(db, user.id, "DOCUMENT_DELETE", f"Deleted doc {doc_id} ({doc.filename})", project_id=doc.project_id)
+
+    return {"status": "ok"}

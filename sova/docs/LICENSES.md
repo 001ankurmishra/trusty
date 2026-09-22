@@ -18,25 +18,18 @@ TrustForge is built on a stack of open-source software and open-weights models. 
 
 ## AI Models
 
-> [!WARNING]
-> **Non-Commercial Model Limitation**
-> 
-> By default, TrustForge uses **Qwen2.5-3B** (and Qwen2.5-Coder:1.5b) as the default models to run efficiently on 16GB RAM laptops. 
-> 
-> **Qwen Research License is Non-Commercial.** If you are deploying TrustForge in a commercial environment or running a commercial pilot, you **must swap this out for a permissively licensed model** (e.g., Llama 3 8B (Llama 3 License) or Mistral 0.3 (Apache 2.0)). You can swap models via the `.env` configuration file without changing any code.
-
 | Model | Default Use | License | Commercial Use? |
 | :--- | :--- | :--- | :--- |
-| **Qwen2.5-3B-Instruct** | Reasoning / Extraction | Tongyi Qianwen License Agreement / Research | **No** (Requires explicit permission for >100M MAU, but effectively Non-Commercial for general research) |
-| **Qwen2.5-Coder:1.5B** | Code / Logic | Tongyi Qianwen License Agreement / Research | **No** |
+| **Llama3.2** | Reasoning / Extraction | Llama 3.2 Community License | **Yes** (Commercial use permitted subject to terms) |
+| **Qwen2.5-Coder:1.5B** | Code / Logic | Apache 2.0 | **Yes** |
 | **Moondream2** | Vision | Apache 2.0 | **Yes** |
 | **all-MiniLM-L6-v2** | Embeddings | Apache 2.0 | **Yes** |
 
-## How to Swap Models
+## Optional: How to Swap Models
 
-To swap out Qwen for a commercial-friendly model, edit your `.env` file:
+If you wish to use different models, you can edit your `.env` file:
 ```env
-REASONING_MODEL="llama3"
-CODING_MODEL="llama3"
+REASONING_MODEL="qwen2.5:3b-instruct"
+CODING_MODEL="qwen2.5-coder:1.5b"
 ```
-Ensure that you have pulled the model to your Ollama server before starting tasks (`ollama pull llama3`).
+Ensure that you have pulled the model to your Ollama server before starting tasks (`ollama pull qwen2.5:3b-instruct`).

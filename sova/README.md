@@ -46,9 +46,9 @@ SQLite→Postgres, subprocess→Docker) without changing the API shape.
 
 Open a terminal:
 ```bash
-ollama pull qwen2.5:3b-instruct     # reasoning — ~2GB
-ollama pull qwen2.5-coder:1.5b      # coding — ~1GB
-ollama pull moondream               # vision — ~1.7GB
+ollama pull llama3.2                  # reasoning — ~2GB
+ollama pull qwen2.5-coder:1.5b        # coding — ~1GB
+ollama pull moondream                 # vision — ~1.7GB
 ```
 These three together comfortably fit in 16GB RAM since Ollama loads one at a
 time on demand. Total disk: ~6GB, well inside 512GB.

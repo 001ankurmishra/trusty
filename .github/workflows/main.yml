@@ -40,7 +40,7 @@ jobs:
         run: |
           cd sova/backend
           python -m pip install pytest
-          python -m pytest tests/test_unit.py
+          python -m pytest tests/ -v
           
   build-frontend:
     runs-on: ubuntu-latest
