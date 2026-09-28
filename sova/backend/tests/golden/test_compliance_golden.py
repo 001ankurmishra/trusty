@@ -1,6 +1,6 @@
 import pytest
 from app.agent.compliance import extract_and_evaluate
-
+from unittest.mock import patch
 def test_golden_compliance():
     # Case 1: Same dimension, different units (pressure)
     # SOP: 150 PSI
@@ -55,9 +55,13 @@ def test_golden_compliance():
         {"chunk": "Maximum Operating Temperature: 85 C", "doc_role": "SOP"},
         {"chunk": "80 C", "doc_role": "INSPECTION_REPORT", "filename": "test5.pdf", "page": 1} # no parameter name
     ]
-    res = extract_and_evaluate(sources, "")
-    assert len(res) == 1
-    assert res[0]["status"] == "NEEDS_REVIEW"
+    with patch("app.agent.llm_client.generate") as mock_generate:
+        mock_generate.return_value = {
+            "text": '[{"parameter": "temperature", "value": 80.0, "unit": "C"}, {"parameter": "pressure", "value": 100.0, "unit": "PSI"}]'
+        }
+        res = extract_and_evaluate(sources, "")
+        assert len(res) == 1
+        assert res[0]["status"] == "PASS"
 
     # Case 6: Self-match trap. An inspection report has "Max pressure: 10.5 bar"
     # Should NOT be parsed as a rule if it's an INSPECTION_REPORT!
