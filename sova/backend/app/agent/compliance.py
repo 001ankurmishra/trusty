@@ -276,6 +276,8 @@ def extract_and_evaluate(sources, task_text, project_id=None):
     finally:
         db.close()
     
+    matched_rule_ids = set()
+    
     for meas in measurements:
         matched_rules = [r for r in rules if _fuzzy_match(meas["parameter"], r["parameter"])]
         
@@ -300,6 +302,9 @@ def extract_and_evaluate(sources, task_text, project_id=None):
             continue
             
         rule = matched_rules[0]
+        # Use object ID or some identifier for tracking since dicts aren't hashable
+        matched_rule_ids.add(id(rule))
+        
         meas_v, meas_dim, _ = normalize_value(meas["value"], meas["unit"])
         rule_v, rule_dim, _ = normalize_value(rule["limit"], rule["unit"])
         
@@ -329,5 +334,17 @@ def extract_and_evaluate(sources, task_text, project_id=None):
                     "status": "PASS" if rem_life > 0 else "FAIL",
                     "source_page": f"DB calc vs {rule['limit']} {rule['unit']}"
                 })
+                
+    # Add rules that had no matching measurement
+    for rule in rules:
+        if id(rule) not in matched_rule_ids:
+            table.append({
+                "parameter": rule["parameter"].title(),
+                "measured": "N/A",
+                "limit": f"{rule['operator'].upper()} {rule['limit']} {rule['unit']}",
+                "status": "NEEDS_REVIEW",
+                "source_page": rule["source_page"],
+                "reason": "no matching measurement found in retrieved excerpts"
+            })
                 
     return table

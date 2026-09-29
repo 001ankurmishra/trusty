@@ -79,23 +79,34 @@ def generate_approval_note(task_id: str, subject: str, findings: str, sources: l
     # Compliance comparison table
     if compliance_table:
         doc.add_heading("3b. Compliance Comparison", level=1)
-        ct = doc.add_table(rows=len(compliance_table) + 1, cols=5)
+        ct = doc.add_table(rows=len(compliance_table) + 1, cols=6)
         ct.style = "Light Grid Accent 1"
-        headers = ["Parameter", "Measured", "Limit", "Status", "Source"]
+        headers = ["Parameter", "Measured", "Limit", "Status", "Source", "Reason"]
         for j, h in enumerate(headers):
             ct.cell(0, j).text = h
-            ct.cell(0, j).paragraphs[0].runs[0].bold = True if ct.cell(0, j).paragraphs[0].runs else False
+            if ct.cell(0, j).paragraphs[0].runs:
+                ct.cell(0, j).paragraphs[0].runs[0].bold = True
         for i, row in enumerate(compliance_table, 1):
             ct.cell(i, 0).text = row.get("parameter", "")
             ct.cell(i, 1).text = row.get("measured", "")
             ct.cell(i, 2).text = row.get("limit", "")
             ct.cell(i, 3).text = row.get("status", "")
             ct.cell(i, 4).text = row.get("source_page", "")
+            ct.cell(i, 5).text = row.get("reason", "")
+            
             # Color the status cell
             if row.get("status") == "FAIL":
                 for p in ct.cell(i, 3).paragraphs:
                     for r in p.runs:
                         r.font.color.rgb = RGBColor(0xCC, 0x00, 0x00)
+            
+            # Visibly distinct for missing measurements
+            if row.get("reason"):
+                for j in range(6):
+                    for p in ct.cell(i, j).paragraphs:
+                        for r in p.runs:
+                            r.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+                            r.font.italic = True
 
     doc.add_heading("4. Calculations", level=1)
     doc.add_paragraph(calculations or "Not applicable.")
