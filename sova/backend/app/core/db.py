@@ -164,7 +164,10 @@ def get_db():
 
 def compute_audit_hash(prev_hash: str, user_id: str, action: str, detail: str, timestamp: str) -> str:
     """Compute SHA-256 hash for audit chain integrity."""
+    import hashlib
     data = f"{prev_hash}|{user_id}|{action}|{detail}|{timestamp}"
+    return hashlib.sha256(data.encode('utf-8')).hexdigest()
+
 import threading
 _audit_lock = threading.Lock()
 _last_timestamp = None

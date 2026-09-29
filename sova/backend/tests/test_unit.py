@@ -56,10 +56,21 @@ def test_four_eyes_approval(client, auth_headers):
     }, headers=headers_reviewer)
     
     task_id = res.json()["id"]
+    
+    import time
     from tests.conftest import TestingSessionLocal
     from app.core.db import Task
+    
+    # Wait for background task to finish
     db = TestingSessionLocal()
-    t = db.query(Task).filter(Task.id == task_id).first()
+    for _ in range(10):
+        t = db.query(Task).filter(Task.id == task_id).first()
+        if t.status in ["COMPLETED", "FAILED"]:
+            break
+        db.close()
+        time.sleep(1)
+        db = TestingSessionLocal()
+        
     t.requires_approval = True
     t.approval_status = "PENDING"
     db.commit()
