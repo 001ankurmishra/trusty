@@ -126,7 +126,8 @@ def _extract_measurements(text, filename, version, page):
                             "parameter": str(m["parameter"]).strip().lower(),
                             "value": float(m["value"]),
                             "unit": str(m["unit"]),
-                            "source_page": f"{filename} v{version} p.{page}"
+                            "source_page": f"{filename} v{version} p.{page}",
+                            "is_llm_extracted": True
                         })
         except Exception as e:
             print("LLM measurement extraction failed:", e)
@@ -313,13 +314,22 @@ def extract_and_evaluate(sources, task_text, project_id=None):
         else:
             status = "PASS" if evaluate(meas_v, rule_v, rule["operator"]) else "FAIL"
             
-        table.append({
+        reason = ""
+        if meas.get("is_llm_extracted"):
+            status = "NEEDS_REVIEW"
+            reason = "LLM extraction requires human verification"
+            
+        row = {
             "parameter": meas["parameter"].title(),
             "measured": f"{meas['value']} {meas['unit']}",
             "limit": f"{rule['operator'].upper()} {rule['limit']} {rule['unit']}",
             "status": status,
             "source_page": f"{meas['source_page']} => {rule['source_page']}"
-        })
+        }
+        if reason:
+            row["reason"] = reason
+            
+        table.append(row)
         
         # If this is thickness, check if we can compute remaining life
         if "thickness" in meas["parameter"] and corrosion_rate:

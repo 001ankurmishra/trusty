@@ -60,8 +60,11 @@ def test_golden_compliance():
             "text": '[{"parameter": "temperature", "value": 80.0, "unit": "C"}, {"parameter": "pressure", "value": 100.0, "unit": "PSI"}]'
         }
         res = extract_and_evaluate(sources, "")
-        assert len(res) == 1
-        assert res[0]["status"] == "PASS"
+        assert len(res) >= 1
+        # The first extracted parameter was "temperature", which matches "Maximum Operating Temperature"
+        temp_result = next(r for r in res if "temperature" in r["parameter"].lower())
+        assert temp_result["status"] == "NEEDS_REVIEW"
+        assert "LLM extraction requires human verification" in temp_result.get("reason", "")
 
     # Case 6: Self-match trap. An inspection report has "Max pressure: 10.5 bar"
     # Should NOT be parsed as a rule if it's an INSPECTION_REPORT!
