@@ -103,7 +103,7 @@ async def upload_document(
 
     try:
         pages = doc_parser.parse_document(filepath, ext)
-        n_chunks = rag_store.ingest_document(doc.id, project_id, safe_name, pages, confidentiality, doc_role=doc.doc_role, version=doc.version)
+        n_chunks = rag_store.ingest_document(doc.id, project_id, safe_name, pages, confidentiality, doc_role=doc.doc_role, version=doc.version, status=doc.status)
 
         # Vision caption for images: run vision model and store as extra chunk
         vision_caption = None
@@ -124,7 +124,7 @@ async def upload_document(
                                      "ocr_used": False, "low_confidence": False}]
                     rag_store.ingest_document(
                         f"{doc.id}_vision", project_id, f"{safe_name} (vision caption)",
-                        vision_pages, confidentiality
+                        vision_pages, confidentiality, status=doc.status
                     )
                     n_chunks += 1
             except Exception:
@@ -207,12 +207,13 @@ def update_document(
     from ..tools.rag_store import _collection
     try:
         if _collection:
-            res = _collection.get(where={"doc_id": doc_id})
+            res = _collection.get(where={"document_id": doc_id})
             if res and "ids" in res and res["ids"]:
                 metadatas = res["metadatas"]
                 for m in metadatas:
                     m["doc_role"] = payload.doc_role
                     m["version"] = payload.version
+                    m["status"] = payload.status
                 _collection.update(ids=res["ids"], metadatas=metadatas)
     except Exception as e:
         print(f"Warning: Failed to update RAG store metadata: {e}")

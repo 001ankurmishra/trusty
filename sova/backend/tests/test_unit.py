@@ -263,3 +263,29 @@ def test_jwt_missing_exp(client):
     res = client.get("/audit/verify", headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 401
     assert "Could not validate credentials" in res.json()["detail"]
+
+def test_rag_status_filter():
+    """B7: Verify that non-ACTIVE documents are excluded from RAG retrieval."""
+    from app.tools import rag_store
+    
+    # Ingest an active doc
+    rag_store.ingest_document("doc_active", "proj_b7", "active.pdf", [{"page": 1, "text": "This is an active document with a secret keyword"}], status="ACTIVE")
+    # Ingest an inactive doc
+    rag_store.ingest_document("doc_inactive", "proj_b7", "inactive.pdf", [{"page": 1, "text": "This is an inactive document with the same secret keyword"}], status="SUPERSEDED")
+    
+    # Search should only return the active one
+    results = rag_store.search("secret keyword", "proj_b7", user_role="ADMIN")
+    assert len(results) == 1
+    assert results[0]["filename"] == "active.pdf"
+    
+    # Update status to ACTIVE
+    from app.tools.rag_store import _collection
+    res = _collection.get(where={"document_id": "doc_inactive"})
+    if res and res["ids"]:
+        metas = res["metadatas"]
+        for m in metas:
+            m["status"] = "ACTIVE"
+        _collection.update(ids=res["ids"], metadatas=metas)
+        
+    results_after = rag_store.search("secret keyword", "proj_b7", user_role="ADMIN")
+    assert len(results_after) == 2

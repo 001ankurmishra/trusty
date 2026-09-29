@@ -36,7 +36,7 @@ def chunk_text(text: str, chunk_size: int = 800, overlap: int = 120):
     return [c for c in chunks if c.strip()]
 
 
-def ingest_document(doc_id: str, project_id: str, filename: str, pages: list, confidentiality: str = "Internal", doc_role: str = "OTHER", version: str = "1.0"):
+def ingest_document(doc_id: str, project_id: str, filename: str, pages: list, confidentiality: str = "Internal", doc_role: str = "OTHER", version: str = "1.0", status: str = "ACTIVE"):
     embedder = _get_embedder()
     ids, docs, metas = [], [], []
     for page in pages:
@@ -52,6 +52,7 @@ def ingest_document(doc_id: str, project_id: str, filename: str, pages: list, co
                 "confidentiality": confidentiality,
                 "doc_role": doc_role,
                 "version": version,
+                "status": status,
                 "low_confidence": page.get("low_confidence", False),
             })
     if not docs:
@@ -71,7 +72,7 @@ def search(query: str, project_id: str, top_k: int = 5, user_role: str = "USER")
     results = _collection.query(
         query_embeddings=q_emb,
         n_results=top_k * 2,  # fetch more so we can filter
-        where={"project_id": project_id},  # FR-08 project boundary filtering
+        where={"$and": [{"project_id": project_id}, {"status": "ACTIVE"}]},  # FR-08 project boundary filtering & active docs
         include=["documents", "metadatas", "distances"],
     )
     out = []
@@ -103,7 +104,8 @@ def get_project_rules(project_id: str):
         where={
             "$and": [
                 {"project_id": project_id},
-                {"doc_role": "SOP"}
+                {"doc_role": "SOP"},
+                {"status": "ACTIVE"}
             ]
         },
         include=["documents", "metadatas"]
