@@ -249,3 +249,17 @@ def test_delete_document(client, auth_headers):
     db = TestingSessionLocal()
     assert db.query(Document).filter(Document.id == "doc_del_test").first() is None
     db.close()
+
+def test_jwt_missing_exp(client):
+    """B4: Reject JWT tokens missing the 'exp' claim."""
+    from jose import jwt
+    from app.core.config import settings
+    
+    # Create a forged token lacking 'exp'
+    to_encode = {"sub": "user1_id"}
+    token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    
+    # Attempt to access a protected route
+    res = client.get("/audit/verify", headers={"Authorization": f"Bearer {token}"})
+    assert res.status_code == 401
+    assert "Could not validate credentials" in res.json()["detail"]

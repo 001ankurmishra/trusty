@@ -29,7 +29,12 @@ def create_access_token(data: dict):
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     cred_exc = HTTPException(status_code=401, detail="Could not validate credentials")
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, 
+            settings.SECRET_KEY, 
+            algorithms=[settings.ALGORITHM],
+            options={"require_exp": True}
+        )
         user_id = payload.get("sub")
         if user_id is None:
             raise cred_exc
