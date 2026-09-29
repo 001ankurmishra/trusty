@@ -293,6 +293,8 @@ def extract_and_evaluate(sources, task_text, project_id=None):
             continue
             
         if len(matched_rules) > 1:
+            for rule in matched_rules:
+                matched_rule_ids.add(id(rule))
             table.append({
                 "parameter": meas["parameter"].title(),
                 "measured": f"{meas['value']} {meas['unit']}",
