@@ -165,27 +165,43 @@ def get_db():
 def compute_audit_hash(prev_hash: str, user_id: str, action: str, detail: str, timestamp: str) -> str:
     """Compute SHA-256 hash for audit chain integrity."""
     data = f"{prev_hash}|{user_id}|{action}|{detail}|{timestamp}"
-    return hashlib.sha256(data.encode()).hexdigest()
-
+import threading
+_audit_lock = threading.Lock()
+_last_timestamp = None
+_last_audit_hash = None
+_audit_initialized = False
 
 def create_audit_log(db, user_id: str, action: str, detail: str = "", project_id: str = ""):
-    """Create an audit log entry with tamper-evident hash chain."""
-    # Get the hash of the most recent entry
-    last_entry = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).first()
-    prev_hash = last_entry.entry_hash if last_entry and last_entry.entry_hash else "GENESIS"
+    """
+    Create an audit log entry with tamper-evident hash chain.
+    Assumes a single uvicorn worker process (threading lock used).
+    """
+    global _last_timestamp, _last_audit_hash, _audit_initialized
+    with _audit_lock:
+        if not _audit_initialized:
+            last_entry = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).first()
+            _last_audit_hash = last_entry.entry_hash if last_entry and last_entry.entry_hash else "GENESIS"
+            _audit_initialized = True
 
-    timestamp = datetime.datetime.utcnow()
-    entry_hash = compute_audit_hash(prev_hash, user_id, action, detail, timestamp.isoformat())
+        prev_hash = _last_audit_hash
 
-    log = AuditLog(
-        user_id=user_id,
-        action=action,
-        detail=detail,
-        project_id=project_id,
-        timestamp=timestamp,
-        prev_hash=prev_hash,
-        entry_hash=entry_hash,
-    )
-    db.add(log)
-    db.commit()
-    return log
+        timestamp = datetime.datetime.utcnow()
+        if _last_timestamp and timestamp <= _last_timestamp:
+            timestamp = _last_timestamp + datetime.timedelta(microseconds=1)
+        _last_timestamp = timestamp
+
+        entry_hash = compute_audit_hash(prev_hash, user_id, action, detail, timestamp.isoformat())
+        _last_audit_hash = entry_hash
+
+        log = AuditLog(
+            user_id=user_id,
+            action=action,
+            detail=detail,
+            project_id=project_id,
+            timestamp=timestamp,
+            prev_hash=prev_hash,
+            entry_hash=entry_hash,
+        )
+        db.add(log)
+        db.commit()
+        return log

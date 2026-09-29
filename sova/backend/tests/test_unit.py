@@ -177,6 +177,43 @@ def test_audit_hash_chain():
     assert ok == False
     db.close()
 
+import threading
+def test_audit_concurrency():
+    """Concurrency test for audit logs. 8 threads x 25 writes."""
+    from app.core.db import create_audit_log, AuditLog
+    from tests.conftest import TestingSessionLocal
+    
+    # Get initial count
+    db = TestingSessionLocal()
+    initial_count = db.query(AuditLog).count()
+    db.close()
+
+    def worker():
+        local_db = TestingSessionLocal()
+        for _ in range(25):
+            create_audit_log(local_db, user_id="user1_id", action="CONCURRENT_TEST", detail="test")
+        local_db.close()
+
+    threads = []
+    for _ in range(8):
+        t = threading.Thread(target=worker)
+        threads.append(t)
+        t.start()
+
+    for t in threads:
+        t.join()
+
+    # Verify chain
+    db = TestingSessionLocal()
+    logs = db.query(AuditLog).order_by(AuditLog.timestamp.asc()).all()
+    new_logs = logs[initial_count:]
+    assert len(new_logs) == 200
+    
+    prev_hashes = [log.prev_hash for log in new_logs]
+    # If there are no forks, all prev_hashes among the new logs should be unique
+    assert len(set(prev_hashes)) == 200
+    db.close()
+
 def test_audit_all_requires_admin(client, auth_headers):
     # Non-admin
     res = client.get("/audit/all", headers=auth_headers("user1", "user123"))
